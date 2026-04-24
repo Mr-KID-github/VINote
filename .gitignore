@@ -14,10 +14,12 @@ env/
 
 # Environment
 .env
+/.env.local
 
 # IDE
 .idea/
 .vscode/
+.codex/
 .claude/
 *.swp
 *.swo
@@ -28,6 +30,7 @@ nul
 frontend/.env
 frontend/.env.local
 frontend/.env.*.local
+/package-lock.json
 node_modules/
 docs/.vitepress/cache/
 docs/.vitepress/dist/
