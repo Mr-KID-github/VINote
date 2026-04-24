@@ -56,7 +56,7 @@ FastAPI 路由层
 - `app/routers/preferences.py`
   - 用户偏好接口
 - `app/routers/model_profiles.py`
-  - 模型配置 CRUD 和连通性测试
+  - 模型配置 CRUD、连通性测试和 Ollama 模型发现
 
 ### 领域与基础设施层
 
@@ -114,4 +114,3 @@ FastAPI 路由层
 - `postgres`
 
 如果启用独立文档站，还会增加一个 `docs` 静态服务。
-

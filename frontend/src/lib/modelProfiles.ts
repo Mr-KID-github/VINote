@@ -38,6 +38,15 @@ export interface ConnectionTestResult {
   errorMessage: string
 }
 
+export interface OllamaModel {
+  name: string
+  model: string
+  modifiedAt?: string
+  size?: number
+  parameterSize: string
+  quantizationLevel: string
+}
+
 type ApiProfile = {
   id: string
   name: string
@@ -57,6 +66,15 @@ type ApiTestResult = {
   model: string
   latency_ms: number
   error_message: string
+}
+
+type ApiOllamaModel = {
+  name: string
+  model: string
+  modified_at?: string
+  size?: number
+  parameter_size: string
+  quantization_level: string
 }
 
 const mapProfile = (profile: ApiProfile): ModelProfile => ({
@@ -80,13 +98,28 @@ const mapTestResult = (result: ApiTestResult): ConnectionTestResult => ({
   errorMessage: result.error_message,
 })
 
+const mapOllamaModel = (model: ApiOllamaModel): OllamaModel => ({
+  name: model.name,
+  model: model.model,
+  modifiedAt: model.modified_at,
+  size: model.size,
+  parameterSize: model.parameter_size,
+  quantizationLevel: model.quantization_level,
+})
+
 const buildDraftPayload = (draft: Partial<ModelProfileDraft>) => {
   const payload: Record<string, unknown> = {}
   if (draft.name !== undefined) payload.name = draft.name
   if (draft.provider !== undefined) payload.provider = draft.provider
-  if (draft.baseUrl !== undefined) payload.base_url = draft.baseUrl
+  if (draft.baseUrl !== undefined && draft.provider !== 'ollama')
+    payload.base_url = draft.baseUrl
   if (draft.modelName !== undefined) payload.model_name = draft.modelName
-  if (draft.apiKey !== undefined && draft.apiKey.trim()) payload.api_key = draft.apiKey
+  if (
+    draft.apiKey !== undefined &&
+    draft.apiKey.trim() &&
+    draft.provider !== 'ollama'
+  )
+    payload.api_key = draft.apiKey
   if (draft.isDefault !== undefined) payload.is_default = draft.isDefault
   if (draft.isActive !== undefined) payload.is_active = draft.isActive
   return payload
@@ -106,7 +139,10 @@ export async function createModelProfile(draft: ModelProfileDraft) {
   return mapProfile(data)
 }
 
-export async function updateModelProfile(id: string, draft: Partial<ModelProfileDraft>) {
+export async function updateModelProfile(
+  id: string,
+  draft: Partial<ModelProfileDraft>,
+) {
   const data = await apiJson<ApiProfile>(`/api/model-profiles/${id}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
@@ -120,7 +156,10 @@ export async function deleteModelProfile(id: string) {
 }
 
 export async function setDefaultModelProfile(id: string) {
-  const data = await apiJson<ApiProfile>(`/api/model-profiles/${id}/set-default`, { method: 'POST' })
+  const data = await apiJson<ApiProfile>(
+    `/api/model-profiles/${id}/set-default`,
+    { method: 'POST' },
+  )
   return mapProfile(data)
 }
 
@@ -134,6 +173,16 @@ export async function testModelProfileDraft(draft: ModelProfileDraft) {
 }
 
 export async function testSavedModelProfile(id: string) {
-  const data = await apiJson<ApiTestResult>(`/api/model-profiles/${id}/test`, { method: 'POST' })
+  const data = await apiJson<ApiTestResult>(`/api/model-profiles/${id}/test`, {
+    method: 'POST',
+  })
   return mapTestResult(data)
+}
+
+export async function fetchOllamaModels(signal?: AbortSignal) {
+  const data = await apiJson<ApiOllamaModel[]>(
+    '/api/model-profiles/ollama/models',
+    { signal },
+  )
+  return data.map(mapOllamaModel)
 }

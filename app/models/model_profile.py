@@ -12,13 +12,16 @@ ProviderType = Literal[
     "groq-openai-compatible",
 ]
 
+OLLAMA_DEFAULT_BASE_URL = "http://127.0.0.1:11434/v1"
+OLLAMA_API_KEY_PLACEHOLDER = "ollama-local"
+
 
 class ModelProfileCreateRequest(BaseModel):
     name: str = Field(min_length=1, max_length=100)
     provider: ProviderType
-    base_url: str = Field(min_length=1, max_length=500)
+    base_url: Optional[str] = Field(default=None, min_length=1, max_length=500)
     model_name: str = Field(min_length=1, max_length=200)
-    api_key: str = Field(min_length=1, max_length=500)
+    api_key: Optional[str] = Field(default=None, min_length=1, max_length=500)
     is_default: bool = False
     is_active: bool = True
 
@@ -35,9 +38,9 @@ class ModelProfileUpdateRequest(BaseModel):
 
 class ModelProfileTestRequest(BaseModel):
     provider: ProviderType
-    base_url: str = Field(min_length=1, max_length=500)
+    base_url: Optional[str] = Field(default=None, min_length=1, max_length=500)
     model_name: str = Field(min_length=1, max_length=200)
-    api_key: str = Field(min_length=1, max_length=500)
+    api_key: Optional[str] = Field(default=None, min_length=1, max_length=500)
 
 
 class ModelProfileResponse(BaseModel):
@@ -59,6 +62,15 @@ class ModelProfileTestResponse(BaseModel):
     model: str
     latency_ms: int
     error_message: str = ""
+
+
+class OllamaModelResponse(BaseModel):
+    name: str
+    model: str
+    modified_at: Optional[str] = None
+    size: Optional[int] = None
+    parameter_size: str = ""
+    quantization_level: str = ""
 
 
 class ResolvedLLMConfig(BaseModel):

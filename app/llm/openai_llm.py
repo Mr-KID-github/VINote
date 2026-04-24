@@ -4,6 +4,7 @@ LLM implementations.
 import logging
 from datetime import timedelta
 from typing import List
+from urllib.parse import urlsplit
 
 import httpx
 from openai import OpenAI
@@ -23,6 +24,11 @@ from app.llm.prompts import (
 from app.models.transcript import TranscriptSegment
 
 logger = logging.getLogger(__name__)
+
+
+def _is_local_base_url(base_url: str) -> bool:
+    host = urlsplit(base_url).hostname
+    return host in {"127.0.0.1", "localhost", "::1"}
 
 
 class _BasePromptLLM(LLMSummarizer):
@@ -223,7 +229,14 @@ class OpenAILLM(_BasePromptLLM):
     ):
         self.model = model
         self.temperature = temperature
-        self.client = OpenAI(api_key=api_key, base_url=base_url, timeout=300.0)
+        client_kwargs = {
+            "api_key": api_key,
+            "base_url": base_url,
+            "timeout": 300.0,
+        }
+        if _is_local_base_url(base_url):
+            client_kwargs["http_client"] = httpx.Client(timeout=300.0, trust_env=False)
+        self.client = OpenAI(**client_kwargs)
         logger.info("[LLM] init openai-compatible model=%s base_url=%s", model, base_url)
 
     def _complete(self, *, system_prompt: str, user_prompt: str) -> str:

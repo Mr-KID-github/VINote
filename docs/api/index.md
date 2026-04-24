@@ -30,7 +30,7 @@ VINote 暴露了多组接口。这里解释“这些接口是干什么的”，S
 - Preferences
   - 用户级偏好配置
 - Model Profiles
-  - 模型配置与连通性测试
+  - 模型配置、连通性测试，以及后端本机 Ollama 模型发现
 - Public Share
   - 公开只读分享页
 - MCP

@@ -11,7 +11,7 @@ The backend can also run as a lightweight MCP server through `mcp_server.py`.
 
 ## Project Structure
 - `app/`
-  - `routers/`: FastAPI route modules. `note.py` exposes generation/status APIs, browser upload generation endpoints, plus task-artifact media routes. `note_library.py` also exposes authenticated saved-note media playback routes. `teams.py` exposes authenticated team and membership APIs. `share.py` exposes authenticated share-link APIs plus public shared-note routes. `model_profiles.py` exposes authenticated LLM model-profile APIs. `stt_profiles.py` exposes authenticated STT profile APIs. `mcp.py` exposes the LAN HTTP MCP endpoint at `/mcp`.
+  - `routers/`: FastAPI route modules. `note.py` exposes generation/status APIs, browser upload generation endpoints, plus task-artifact media routes. `note_library.py` also exposes authenticated saved-note media playback routes. `teams.py` exposes authenticated team and membership APIs. `share.py` exposes authenticated share-link APIs plus public shared-note routes. `model_profiles.py` exposes authenticated LLM model-profile APIs plus local Ollama model discovery. `stt_profiles.py` exposes authenticated STT profile APIs. `mcp.py` exposes the LAN HTTP MCP endpoint at `/mcp`.
   - `services/`: orchestration and domain services.
     - `note_service.py`: main pipeline coordinator.
     - `mcp_service.py`: shared MCP tool definitions and JSON-RPC request handling used by both the stdio server and the HTTP `/mcp` endpoint.
@@ -20,7 +20,7 @@ The backend can also run as a lightweight MCP server through `mcp_server.py`.
     - `llm_service.py`: resolves LLM config from request overrides, saved model profiles, or env defaults.
     - `stt_profile_service.py`: resolves STT config from per-run selection, saved STT profiles, or env defaults.
     - `task_artifact_service.py`: persists status/result/transcript/markdown artifacts under `output/`.
-    - `model_profile_*`: encrypted model profile CRUD and connection testing.
+    - `model_profile_*`: encrypted model profile CRUD, connection testing, and Ollama model discovery.
     - `stt_profile_*`: encrypted STT profile CRUD and provider-specific normalization.
     - `auth_service.py`: local email/password auth plus JWT cookie validation for protected APIs.
     - `team_repository.py`: team CRUD, membership management, and team access checks.

@@ -22,7 +22,7 @@ Current stack:
 - Add key moments, timestamp jumps, and screenshots
 - Save notes and continue editing in the built-in editor
 - Support public read-only share links
-- Support LLM and STT profile management
+- Support LLM and STT profile management, including local Ollama model discovery on the backend host
 - Expose both a standalone docs site and FastAPI Swagger / ReDoc
 - Provide bilingual docs: Simplified Chinese by default, English under `/en/`
 
@@ -31,6 +31,7 @@ Current stack:
 - The browser generator supports three source modes: video URL, local media file, and local transcript
 - `POST /api/generate` handles remote URL input
 - `POST /api/generate_from_upload` handles browser multipart uploads for local audio, video, and transcript files
+- `GET /api/model-profiles/ollama/models` lists Ollama models installed on the backend host
 - Transcript uploads support `TXT`, `MD`, `SRT`, `VTT`, and `JSON` and skip STT entirely
 
 ## Documentation

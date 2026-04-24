@@ -1,4 +1,6 @@
-from fastapi import APIRouter, Depends, Response, status
+from typing import Optional
+
+from fastapi import APIRouter, Depends, Query, Response, status
 
 from app.models.auth import AuthenticatedUser
 from app.models.model_profile import (
@@ -7,6 +9,7 @@ from app.models.model_profile import (
     ModelProfileTestRequest,
     ModelProfileTestResponse,
     ModelProfileUpdateRequest,
+    OllamaModelResponse,
 )
 from app.services.auth_service import get_current_user
 from app.services.model_profile_service import ModelProfileService
@@ -18,6 +21,14 @@ _service = ModelProfileService()
 @router.get("/model-profiles", response_model=list[ModelProfileResponse])
 def list_model_profiles(user: AuthenticatedUser = Depends(get_current_user)):
     return _service.list_profiles(user.user_id)
+
+
+@router.get("/model-profiles/ollama/models", response_model=list[OllamaModelResponse])
+def list_ollama_models(
+    base_url: Optional[str] = Query(default=None, min_length=1, max_length=500),
+    _user: AuthenticatedUser = Depends(get_current_user),
+):
+    return _service.list_ollama_models(base_url)
 
 
 @router.post("/model-profiles", response_model=ModelProfileResponse, status_code=status.HTTP_201_CREATED)

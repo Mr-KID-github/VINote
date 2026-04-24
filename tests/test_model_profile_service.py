@@ -1,7 +1,16 @@
 import unittest
 from datetime import datetime, timezone
 
-from app.models.model_profile import ModelProfileRecord, ModelProfileTestRequest, ModelProfileTestResponse
+from fastapi import HTTPException
+
+from app.models.model_profile import (
+    OLLAMA_API_KEY_PLACEHOLDER,
+    OLLAMA_DEFAULT_BASE_URL,
+    ModelProfileCreateRequest,
+    ModelProfileRecord,
+    ModelProfileTestRequest,
+    ModelProfileTestResponse,
+)
 from app.services.model_profile_service import ModelProfileService
 
 
@@ -33,12 +42,14 @@ class FakeRepository:
         self.default_profile = make_record()
         self.profile_record = make_record()
         self.default_set_calls: list[tuple[str, str]] = []
+        self.created_payload = None
 
     def list_profiles(self, user_id: str):
         return []
 
     def create_profile(self, user_id: str, payload):
-        raise NotImplementedError
+        self.created_payload = payload
+        return payload
 
     def update_profile(self, user_id: str, profile_id: str, payload):
         raise NotImplementedError
@@ -61,6 +72,11 @@ class FakeRepository:
 
     def decrypt_api_key(self, value: str):
         return "plain-secret"
+
+    def get_record_api_key(self, record: ModelProfileRecord):
+        if record.provider == "ollama":
+            return OLLAMA_API_KEY_PLACEHOLDER
+        return self.decrypt_api_key(record.api_key_encrypted)
 
 
 class FakeConnectionService:
@@ -112,6 +128,52 @@ class ModelProfileServiceTest(unittest.TestCase):
 
         self.assertEqual(len(connection_service.requests), 1)
         self.assertEqual(connection_service.requests[0].api_key, "plain-secret")
+
+    def test_create_ollama_profile_defaults_connection_fields(self):
+        repository = FakeRepository()
+        service = ModelProfileService(repository=repository, connection_service=FakeConnectionService())
+
+        service.create_profile(
+            "user-1",
+            ModelProfileCreateRequest(
+                name="Local Gemma",
+                provider="ollama",
+                model_name="gemma2:2b",
+            ),
+        )
+
+        self.assertEqual(repository.created_payload.base_url, OLLAMA_DEFAULT_BASE_URL)
+        self.assertEqual(repository.created_payload.api_key, OLLAMA_API_KEY_PLACEHOLDER)
+
+    def test_create_remote_profile_still_requires_api_key(self):
+        service = ModelProfileService(repository=FakeRepository(), connection_service=FakeConnectionService())
+
+        with self.assertRaises(HTTPException) as context:
+            service.create_profile(
+                "user-1",
+                ModelProfileCreateRequest(
+                    name="OpenAI",
+                    provider="openai-compatible",
+                    base_url="https://api.openai.com/v1",
+                    model_name="gpt-4o-mini",
+                ),
+            )
+
+        self.assertEqual(context.exception.status_code, 400)
+
+    def test_test_ollama_draft_defaults_connection_fields(self):
+        connection_service = FakeConnectionService()
+        service = ModelProfileService(repository=FakeRepository(), connection_service=connection_service)
+
+        service.test_connection(
+            ModelProfileTestRequest(
+                provider="ollama",
+                model_name="gemma2:2b",
+            )
+        )
+
+        self.assertEqual(connection_service.requests[0].base_url, OLLAMA_DEFAULT_BASE_URL)
+        self.assertEqual(connection_service.requests[0].api_key, OLLAMA_API_KEY_PLACEHOLDER)
 
 
 if __name__ == "__main__":
