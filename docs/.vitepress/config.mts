@@ -22,6 +22,7 @@ const zhTheme = {
       text: 'API',
       items: [
         { text: '概览', link: '/api/' },
+        { text: 'API Key', link: '/api/api-keys' },
         { text: '生成笔记', link: '/api/generate-note' },
         { text: '任务状态', link: '/api/task-status' },
         { text: '已保存笔记', link: '/api/saved-notes' },
@@ -74,6 +75,7 @@ const enTheme = {
       text: 'API',
       items: [
         { text: 'Overview', link: '/en/api/' },
+        { text: 'API Keys', link: '/en/api/api-keys' },
         { text: 'Generate Note', link: '/en/api/generate-note' },
         { text: 'Task Status', link: '/en/api/task-status' },
         { text: 'Saved Notes', link: '/en/api/saved-notes' },

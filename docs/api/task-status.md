@@ -11,6 +11,8 @@ description: 长任务轮询模型，以及产物读取方式。
 
 - `GET /api/task/{task_id}`
 - `GET /api/task/{task_id}/artifacts/{asset_path}`
+- `GET /api/v1/task/{task_id}`，需要用户 API Key 或 `EXTERNAL_API_KEY`
+- `GET /api/v1/task/{task_id}/artifacts/{asset_path}`，需要用户 API Key 或 `EXTERNAL_API_KEY`
 
 ## 推荐客户端模式
 

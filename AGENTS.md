@@ -3,7 +3,7 @@
 ## Architecture Overview
  VINote is a full-stack video-to-note workspace with three moving parts:
 
-- Backend: FastAPI API for downloading media, receiving local audio/video/transcript uploads, transcribing audio when needed, generating Markdown notes, managing per-user LLM model profiles plus STT profiles, and handling team workspaces plus team membership.
+- Backend: FastAPI API for downloading media, receiving local audio/video/transcript uploads, transcribing audio when needed, generating Markdown notes, managing per-user LLM model profiles plus STT profiles, managing per-user external API keys, and handling team workspaces plus team membership.
 - Frontend: Vite + React + TypeScript app for authentication, note generation from URL or local uploads, personal/team note browsing, editing, team management, and settings.
 - Database/Auth: Postgres-backed storage plus FastAPI-issued JWT auth stored in an HttpOnly cookie.
 
@@ -11,7 +11,7 @@ The backend can also run as a lightweight MCP server through `mcp_server.py`.
 
 ## Project Structure
 - `app/`
-  - `routers/`: FastAPI route modules. `note.py` exposes generation/status APIs, browser upload generation endpoints, plus task-artifact media routes. `note_library.py` also exposes authenticated saved-note media playback routes. `teams.py` exposes authenticated team and membership APIs. `share.py` exposes authenticated share-link APIs plus public shared-note routes. `model_profiles.py` exposes authenticated LLM model-profile APIs plus local Ollama model discovery. `stt_profiles.py` exposes authenticated STT profile APIs. `mcp.py` exposes the LAN HTTP MCP endpoint at `/mcp`.
+  - `routers/`: FastAPI route modules. `note.py` exposes generation/status APIs, browser upload generation endpoints, plus task-artifact media routes. `external_api.py` exposes API-key-protected `/api/v1` generation/status APIs for non-browser clients. `api_keys.py` exposes authenticated user API-key CRUD. `note_library.py` also exposes authenticated saved-note media playback routes. `teams.py` exposes authenticated team and membership APIs. `share.py` exposes authenticated share-link APIs plus public shared-note routes. `model_profiles.py` exposes authenticated LLM model-profile APIs plus local Ollama model discovery. `stt_profiles.py` exposes authenticated STT profile APIs. `mcp.py` exposes the LAN HTTP MCP endpoint at `/mcp`.
   - `services/`: orchestration and domain services.
     - `note_service.py`: main pipeline coordinator.
     - `mcp_service.py`: shared MCP tool definitions and JSON-RPC request handling used by both the stdio server and the HTTP `/mcp` endpoint.
@@ -22,7 +22,9 @@ The backend can also run as a lightweight MCP server through `mcp_server.py`.
     - `task_artifact_service.py`: persists status/result/transcript/markdown artifacts under `output/`.
     - `model_profile_*`: encrypted model profile CRUD, connection testing, and Ollama model discovery.
     - `stt_profile_*`: encrypted STT profile CRUD and provider-specific normalization.
+    - `api_key_*`: user external API-key creation/list/revocation and hashed-key lookup for `/api/v1`.
     - `auth_service.py`: local email/password auth plus JWT cookie validation for protected APIs.
+    - `external_api_auth_service.py`: accepts user-created API keys or the optional `.env` fallback key for `/api/v1`.
     - `team_repository.py`: team CRUD, membership management, and team access checks.
     - `share_service.py`: builds public share URLs and renders read-only shared-note HTML.
     - `screenshot_service.py`: replaces `[[Screenshot:mm:ss]]` placeholders with extracted frame images.
@@ -33,8 +35,8 @@ The backend can also run as a lightweight MCP server through `mcp_server.py`.
 - `frontend/src/`
   - `pages/`: route-level screens such as home, generator, notes, editor, login, team, and settings.
   - `components/`: reusable UI building blocks.
-  - `stores/`: Zustand stores for auth, theme, note generation, note library, team workspace selection, model profiles, STT profiles, and language.
-  - `lib/`: API wrapper, Supabase client, i18n copy, and model/STT profile client helpers.
+  - `stores/`: Zustand stores for auth, theme, note generation, note library, team workspace selection, model profiles, STT profiles, API keys, and language.
+  - `lib/`: API wrapper, Supabase client, i18n copy, and model/STT/API-key client helpers.
 - `supabase/`: local Supabase config, start scripts, and SQL migrations.
 - `scripts/`: repository-level diagnostics and deployment smoke checks such as `check_reverse_proxy.py` for validating backend health plus frontend `/api` proxying.
 - `tests/`: backend unit tests.
@@ -46,6 +48,7 @@ The backend can also run as a lightweight MCP server through `mcp_server.py`.
 
 ## Runtime Flow
 1. Frontend signs users in against FastAPI auth endpoints and browser requests carry the HttpOnly auth cookie to `/api/*`.
+1. Signed-in users can create external API keys from Settings or `/api/api-keys`; only the creation response includes the full key, while the database stores a hash and later list responses show only a prefix.
 2. `NoteService` creates a task directory under `output/`, downloads remote media, stages an uploaded local file, or prepares an uploaded transcript, and updates `status.json`.
 3. `TranscriptionService` loads the selected transcriber, optionally chunks long audio, and saves `transcript.json` when the task input is media.
 4. `LLMService` resolves the active model configuration and generates Markdown from transcript segments using the requested summary mode (`default`, `accurate`, or `oneshot`). Transcript uploads skip the STT step and enter summarization directly.
@@ -53,6 +56,7 @@ The backend can also run as a lightweight MCP server through `mcp_server.py`.
 6. `NoteMediaService` enriches the generated Markdown with section-level timestamp jump links and screenshot markers, then `ScreenshotService` downloads the full video and injects extracted frames.
 7. `TaskArtifactService` writes `note.md`, `result.json`, `status.json`, and the `.task_id` mapping.
 8. Frontend polls `/api/task/{task_id}`, stores the final note row together with `task_id` in the backend `notes` table under either the current personal workspace or a selected team workspace, renders key moments as timestamp-and-screenshot cards, shows the source media beside preview content when available, seeks embedded video or extracted audio when note timestamps are clicked, supports URL, local media, and local transcript generation entry points, and can optionally generate a public `/share/{token}` link for LAN access.
+9. External clients call `/api/v1/*` with `Authorization: Bearer <key>` or `X-API-Key`; user-created keys resolve that user's default LLM/STT profiles, while `EXTERNAL_API_KEY` remains an optional admin fallback.
 
 ## Build, Run, and Dev Commands
 - Backend install: `pip install -r requirements.txt`
@@ -93,6 +97,8 @@ Important backend variables:
 - `APP_JWT_SECRET`, `AUTH_COOKIE_*`: backend-issued session cookie settings.
 - `DATABASE_URL`: required database connection string.
 - `SHARE_BASE_URL`: optional override for generated public share links; when empty, the backend tries to infer a LAN URL automatically.
+- `EXTERNAL_API_KEY`: optional admin fallback key for `/api/v1/*`; normal users can create their own API keys from Settings.
+- `EXTERNAL_API_USER_ID`: optional user binding for the fallback `EXTERNAL_API_KEY`, allowing it to resolve that user's default LLM/STT profiles.
 - `MODEL_PROFILE_ENCRYPTION_KEY`: required to store/decrypt model profile API keys.
   - the same encryption key is also used for Groq STT profile API keys
 
@@ -152,5 +158,6 @@ Update `README.md`, this `AGENTS.md`, or both whenever you change:
 - The current frontend supports local audio/video uploads and direct transcript uploads from the browser.
 - The note generator UI exposes both LLM profile selection and STT profile selection; `default` summary mode still auto-switches to hierarchical summarization for longer transcripts.
 - Share links are public read-only links backed by `notes.share_token` and can be disabled from the note editor.
+- User-created external API keys are stored as hashes in `api_keys`; the full key is only returned once by `POST /api/api-keys`.
 - Saved notes are now explicitly scoped as either personal notes or team notes. Team notes require `scope="team"` plus a valid `team_id`, and any signed-in team member can open them through the normal note APIs.
 - If documentation and code disagree, trust the code, then fix the documentation in the same change.

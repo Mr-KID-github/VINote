@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Shield } from 'lucide-react'
 import { AppearanceSettingsPanel } from '../components/Settings/AppearanceSettingsPanel'
+import { APIKeyManager } from '../components/Settings/APIKeyManager'
 import { ModelProfileManager } from '../components/Settings/ModelProfileManager'
 import { NotificationSettingsPanel } from '../components/Settings/NotificationSettingsPanel'
 import { PlaceholderSettingsPanel } from '../components/Settings/PlaceholderSettingsPanel'
@@ -32,6 +33,7 @@ export function Settings() {
               <STTProfileManager />
             </div>
           )}
+          {activeTab === 'apiKeys' && <APIKeyManager />}
           {activeTab === 'team' && (
             <PlaceholderSettingsPanel
               icon={Shield}

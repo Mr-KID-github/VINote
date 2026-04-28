@@ -4,7 +4,7 @@
 
 VINote 是一个将视频或音频内容转换为结构化 Markdown 笔记的全栈工作台。
 
-当前版本：`v0.2.0`
+当前版本：`v0.3.0`
 
 当前技术栈：
 
@@ -22,6 +22,7 @@ VINote 是一个将视频或音频内容转换为结构化 Markdown 笔记的全
 - 自动补充关键时刻、时间戳跳转和截图
 - 保存笔记并在内置编辑器中继续修改
 - 支持公开只读分享链接
+- 支持登录用户创建自己的 API Key，并通过后端 `/api/v1` 外部生成接口调用笔记生成
 - 支持 LLM / STT 配置管理；Ollama 配置可自动读取后端本机已安装模型
 - 同时提供独立文档站与 FastAPI Swagger / ReDoc
 - 文档支持中英文双语，默认中文，英文入口为 `/en/`
@@ -31,6 +32,8 @@ VINote 是一个将视频或音频内容转换为结构化 Markdown 笔记的全
 - 浏览器生成页支持三种模式：视频 URL、本地音频/视频文件、本地文字稿
 - `POST /api/generate` 处理 URL 输入
 - `POST /api/generate_from_upload` 处理浏览器上传的本地音频、视频和文字稿
+- `GET/POST/DELETE /api/api-keys` 管理登录用户自己的外部调用 API Key
+- `POST /api/v1/generate` 与 `POST /api/v1/generate_from_upload` 提供 API Key 保护的外部调用入口
 - `GET /api/model-profiles/ollama/models` 读取后端本机 Ollama 模型列表
 - 上传文字稿时支持 `TXT`、`MD`、`SRT`、`VTT`、`JSON`，并直接跳过 STT
 

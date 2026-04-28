@@ -29,3 +29,14 @@ VINote 使用后端签发的 JWT Session Cookie。
 - 脚本或 CLI 客户端要自己持久化 Cookie
 - 如果部署在局域网，检查 `.env` 里的 Cookie 域名和安全配置
 
+## 外部 API Key
+
+后端也提供 `/api/v1` 外部接口。登录用户可以在设置页创建自己的 API Key，也可以调用：
+
+- `GET /api/api-keys`
+- `POST /api/api-keys`
+- `DELETE /api/api-keys/{key_id}`
+
+完整密钥只会在创建时返回一次，数据库只保存 hash。调用方可以通过 `Authorization: Bearer <key>` 或 `X-API-Key: <key>` 访问 URL 生成、上传生成和任务查询接口。
+
+`.env` 中的 `EXTERNAL_API_KEY` 仍可作为管理员级兜底密钥。`EXTERNAL_API_USER_ID` 只影响这个兜底密钥；设置后，外部接口会以该用户身份解析默认 LLM/STT 配置，并允许传入该用户可访问的 `model_profile_id`、`stt_profile_id`。

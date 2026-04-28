@@ -23,6 +23,10 @@ VINote 暴露了多组接口。这里解释“这些接口是干什么的”，S
   - 注册、登录、退出、当前用户、会话探测
 - Generation
   - 发起笔记生成任务
+- API Keys
+  - 登录用户创建、查看和撤销自己的外部调用密钥
+- External API
+  - 通过用户 API Key 或 `EXTERNAL_API_KEY` 保护的 `/api/v1` URL、上传和任务查询接口
 - Tasks
   - 轮询任务状态、拉取任务产物
 - Notes

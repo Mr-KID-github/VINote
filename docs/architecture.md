@@ -30,6 +30,7 @@ FastAPI 路由层
   |- AuthService
   |- NoteService
   |- ModelProfileService
+  |- APIKeyService
   |- Repositories
         |
         +--> PostgreSQL
@@ -57,11 +58,17 @@ FastAPI 路由层
   - 用户偏好接口
 - `app/routers/model_profiles.py`
   - 模型配置 CRUD、连通性测试和 Ollama 模型发现
+- `app/routers/api_keys.py`
+  - 登录用户 API Key 创建、列表和撤销接口
+- `app/routers/external_api.py`
+  - API Key 保护的 `/api/v1` 外部生成和任务查询接口
 
 ### 领域与基础设施层
 
 - `app/services/auth_service.py`
   - 密码哈希、JWT 签发/校验、HttpOnly Cookie 处理
+- `app/services/api_key_*`
+  - API Key 生成、hash 存储、撤销和 `/api/v1` 鉴权
 - `app/services/note_service.py`
   - 笔记生成编排
 - `app/services/transcription_service.py`
@@ -82,7 +89,7 @@ FastAPI 路由层
 - `frontend/src/components/Layout/`
   - 主框架、页头、侧栏、主题控件
 - `frontend/src/components/Settings/`
-  - 设置面板和模型配置 UI
+  - 设置面板、模型配置和 API Key 管理 UI
 
 ### 功能页面
 
@@ -102,6 +109,8 @@ FastAPI 路由层
 - VINote 自己管理用户账户，数据存储在 PostgreSQL。
 - 后端签发 JWT，并通过 HttpOnly Cookie 传递给浏览器。
 - 前端不直接读取原始 token。
+- 外部调用使用用户创建的 API Key 或 `.env` 兜底密钥访问 `/api/v1`。
+- 用户 API Key 只在创建时返回完整值，数据库只保存 hash。
 - Provider API Key 只保存在后端，前端只拿到脱敏提示。
 - 任务产物仍以文件形式落在 `output/`。
 

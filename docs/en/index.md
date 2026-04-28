@@ -42,3 +42,12 @@ Use Swagger for:
 - generated examples
 - interactive endpoint testing
 
+## Suggested Reading Order
+
+1. [Introduction](/en/guide/introduction)
+2. [Quickstart](/en/guide/quickstart)
+3. [Authentication](/en/guide/authentication)
+4. [API Keys](/en/api/api-keys)
+5. [Generate Note](/en/api/generate-note)
+6. [Task Status](/en/api/task-status)
+7. [Saved Notes](/en/api/saved-notes)

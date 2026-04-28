@@ -68,6 +68,8 @@ class Settings:
     auth_cookie_samesite: str = os.getenv("AUTH_COOKIE_SAMESITE", "lax")
     auth_cookie_domain: str = os.getenv("AUTH_COOKIE_DOMAIN", "")
     share_base_url: str = os.getenv("SHARE_BASE_URL", "").strip()
+    external_api_key: str = os.getenv("EXTERNAL_API_KEY", "").strip()
+    external_api_user_id: str = os.getenv("EXTERNAL_API_USER_ID", "").strip()
 
     model_profile_encryption_key: str = os.getenv("MODEL_PROFILE_ENCRYPTION_KEY", "")
     azure_openai_api_version: str = os.getenv("AZURE_OPENAI_API_VERSION", "2024-10-21")
