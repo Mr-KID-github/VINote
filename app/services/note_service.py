@@ -94,6 +94,7 @@ class NoteService:
 
         task_start_time = time.time()
         task_dir = self.artifact_service.create_task_dir(task_id)
+        self.artifact_service.save_task_owner(task_dir, user_id)
         step_timings: dict[str, float] = {}
 
         try:
@@ -148,6 +149,7 @@ class NoteService:
             raise FileNotFoundError(f"Audio file does not exist: {file_path}")
 
         task_dir = self.artifact_service.create_task_dir(task_id)
+        self.artifact_service.save_task_owner(task_dir, user_id)
         step_timings: dict[str, float] = {}
 
         try:
@@ -200,6 +202,7 @@ class NoteService:
     ) -> NoteResult:
         task_start_time = time.time()
         task_dir = self.artifact_service.create_task_dir(task_id)
+        self.artifact_service.save_task_owner(task_dir, user_id)
         step_timings: dict[str, float] = {}
 
         try:

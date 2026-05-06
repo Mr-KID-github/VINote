@@ -12,7 +12,7 @@ Current stack:
 - Backend: FastAPI
 - Database: PostgreSQL
 - Auth: FastAPI-issued JWT stored in an HttpOnly cookie
-- Deployment targets: local Docker and Raspberry Pi LAN Docker
+- Deployment targets: local Docker, Raspberry Pi LAN Docker, and Linux cloud Docker
 
 ## Core capabilities
 
@@ -129,6 +129,15 @@ Default ports:
 - Frontend: `http://localhost:3100`
 - Backend: `http://localhost:8900`
 - Docs: `http://localhost:3101`
+
+## Linux Cloud Deployment
+
+For cloud beta testing, run VINote with Docker Compose and put a host-level Nginx/Caddy HTTPS reverse proxy in front of the frontend service. See:
+
+- Environment template: `deploy/cloud.env.example`
+- Deployment guide: `docs/en/deployment/linux-cloud.md`
+
+Do not expose backend port `8900` or Postgres directly to the public internet.
 
 ## Raspberry Pi deployment
 

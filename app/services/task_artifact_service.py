@@ -23,6 +23,21 @@ class TaskArtifactService:
         task_dir.mkdir(parents=True, exist_ok=True)
         return task_dir
 
+    def save_task_owner(self, task_dir: Path, user_id: str | None) -> None:
+        if user_id:
+            self.write_text(task_dir / ".owner_user_id", user_id)
+
+    def get_task_owner(self, task_id: str) -> str | None:
+        task_dir = self.find_task_dir(task_id)
+        if not task_dir:
+            return None
+
+        owner_file = task_dir / ".owner_user_id"
+        if not owner_file.exists():
+            return None
+        owner = owner_file.read_text(encoding="utf-8").strip()
+        return owner or None
+
     def finalize_task_dir(self, task_dir: Path, title: str, task_id: str) -> Path:
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         safe_title = self.sanitize_filename(title)

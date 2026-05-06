@@ -13,6 +13,7 @@ class TaskArtifactServiceTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             service = TaskArtifactService(Path(temp_dir))
             task_dir = service.create_task_dir("task-123")
+            service.save_task_owner(task_dir, "user-1")
             service.update_status(task_dir, "downloading", "Downloading audio...")
 
             final_dir = service.finalize_task_dir(task_dir, 'Demo:Title*?', "task-123")
@@ -53,6 +54,7 @@ class TaskArtifactServiceTest(unittest.TestCase):
             self.assertEqual(result_payload["title"], "Demo Title")
             self.assertEqual(result_payload["output_path"], str(final_dir))
             self.assertIn("DemoTitle", final_dir.name)
+            self.assertEqual(service.get_task_owner("task-123"), "user-1")
 
     def test_stage_media_file_copies_into_media_directory(self):
         with tempfile.TemporaryDirectory() as temp_dir:

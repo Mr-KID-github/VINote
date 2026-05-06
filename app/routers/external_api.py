@@ -46,6 +46,25 @@ def _build_note_response(task_id: str, result) -> NoteResponse:
     )
 
 
+def _prepare_external_task(task_id: str, principal: ExternalAPIPrincipal) -> None:
+    task_dir = note_router._note_service.artifact_service.create_task_dir(task_id)
+    note_router._note_service.artifact_service.save_task_owner(task_dir, _external_user_id(principal))
+    note_router._note_service.artifact_service.update_status(task_dir, "pending", "Task submitted")
+
+
+def _ensure_task_access(task_id: str, principal: ExternalAPIPrincipal) -> None:
+    user_id = _external_user_id(principal)
+    if not user_id:
+        return
+
+    owner_id = note_router._note_service.artifact_service.get_task_owner(task_id)
+    if owner_id and owner_id == user_id:
+        return
+    if owner_id is None and principal.source == "env":
+        return
+    raise HTTPException(status_code=404, detail="Task not found")
+
+
 @router.post("/generate", response_model=dict)
 def generate_note_async(
     req: NoteRequest,
@@ -58,6 +77,7 @@ def generate_note_async(
         stt_profile_id=req.stt_profile_id,
     )
     task_id = str(uuid.uuid4())
+    _prepare_external_task(task_id, principal)
     background_tasks.add_task(
         note_router._run_task,
         task_id=task_id,
@@ -135,6 +155,7 @@ async def generate_from_upload(
             raise ValueError("Uploaded file is empty.")
 
         task_id = str(uuid.uuid4())
+        _prepare_external_task(task_id, principal)
 
         if normalized_source_type == "transcript":
             note_router._ensure_transcript_extension(file.filename)
@@ -283,8 +304,9 @@ async def generate_from_upload_sync(
 @router.get("/task/{task_id}", response_model=TaskStatusResponse)
 def get_task_status(
     task_id: str,
-    _principal: ExternalAPIPrincipal = Depends(require_external_api_key),
+    principal: ExternalAPIPrincipal = Depends(require_external_api_key),
 ):
+    _ensure_task_access(task_id, principal)
     return note_router.get_task_status(task_id)
 
 
@@ -292,8 +314,9 @@ def get_task_status(
 def get_task_artifact(
     task_id: str,
     asset_path: str,
-    _principal: ExternalAPIPrincipal = Depends(require_external_api_key),
+    principal: ExternalAPIPrincipal = Depends(require_external_api_key),
 ):
+    _ensure_task_access(task_id, principal)
     response = note_router.get_task_artifact(task_id, asset_path)
     if not isinstance(response, FileResponse):
         raise HTTPException(status_code=404, detail="Artifact not found")

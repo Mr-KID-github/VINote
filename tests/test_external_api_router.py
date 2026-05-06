@@ -141,6 +141,28 @@ class ExternalAPIRouterTest(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(mock_run_task.call_args.kwargs["user_id"], "user-from-key")
 
+    def test_user_api_key_can_only_read_own_task_status(self):
+        self.api_key_repository.record = APIKeyRecord(
+            id="key-1",
+            user_id="user-from-key",
+            name="Automation",
+            key_prefix="user-api-key"[:12],
+            key_hash="hash",
+            created_at=datetime.now(timezone.utc),
+        )
+
+        with patch.object(
+            external_api.note_router._note_service.artifact_service,
+            "get_task_owner",
+            return_value="another-user",
+        ):
+            response = self.client.get(
+                "/api/v1/task/task-1",
+                headers={"Authorization": "Bearer user-api-key"},
+            )
+
+        self.assertEqual(response.status_code, 404)
+
     def test_upload_accepts_audio_file_with_api_key(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             upload_path = Path(temp_dir) / "task_audio_demo.mp3"

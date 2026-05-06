@@ -33,6 +33,7 @@ const zhTheme = {
       items: [
         { text: 'MCP 接入', link: '/integrations/mcp' },
         { text: '本地部署', link: '/deployment/local' },
+        { text: 'Linux 云服务器部署', link: '/deployment/linux-cloud' },
         { text: '系统架构', link: '/architecture' },
       ],
     },
@@ -86,6 +87,7 @@ const enTheme = {
       items: [
         { text: 'MCP Access', link: '/en/integrations/mcp' },
         { text: 'Local Deployment', link: '/en/deployment/local' },
+        { text: 'Linux Cloud Deployment', link: '/en/deployment/linux-cloud' },
         { text: 'Architecture', link: '/en/architecture' },
       ],
     },

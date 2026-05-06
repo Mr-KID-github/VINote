@@ -12,7 +12,7 @@ VINote 是一个将视频或音频内容转换为结构化 Markdown 笔记的全
 - 后端：FastAPI
 - 数据库：PostgreSQL
 - 认证：FastAPI 签发 JWT，并通过 HttpOnly Cookie 保存会话
-- 部署目标：本地 Docker 与树莓派局域网 Docker
+- 部署目标：本地 Docker、树莓派局域网 Docker 与 Linux 云服务器 Docker
 
 ## 核心能力
 
@@ -129,6 +129,15 @@ docker compose up --build
 - 前端：`http://localhost:3100`
 - 后端：`http://localhost:8900`
 - 文档站：`http://localhost:3101`
+
+## Linux 云服务器部署
+
+云服务器内测推荐使用 Docker Compose 启动 VINote，再用系统级 Nginx/Caddy 做 HTTPS 反向代理。参考：
+
+- 环境变量模板：`deploy/cloud.env.example`
+- 部署说明：`docs/deployment/linux-cloud.md`
+
+生产或公网内测不要直接开放后端 `8900` 和 Postgres 端口，只开放 `80/443` 给反向代理。
 
 ## 树莓派部署
 

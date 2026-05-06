@@ -171,6 +171,7 @@ class NoteServiceTest(unittest.TestCase):
             self.assertEqual(saved_result["title"], "Demo Note")
             self.assertEqual(saved_result["summary_mode"], "accurate")
             self.assertTrue(Path(saved_result["output_path"]).exists())
+            self.assertEqual(artifact_service.get_task_owner("task-1"), "user-1")
 
 
 if __name__ == "__main__":
