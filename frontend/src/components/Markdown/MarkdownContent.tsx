@@ -72,6 +72,22 @@ export function MarkdownContent({ content, className, videoUrl, mediaUrl, onVide
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         components={{
+          table: ({ children }) => (
+            <table className="w-full border-collapse my-4 text-sm overflow-x-auto block">{children}</table>
+          ),
+          thead: ({ children }) => (
+            <thead className="bg-gray-100 dark:bg-gray-800">{children}</thead>
+          ),
+          tbody: ({ children }) => <tbody>{children}</tbody>,
+          tr: ({ children }) => (
+            <tr className="border-b border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">{children}</tr>
+          ),
+          th: ({ children }) => (
+            <th className="px-4 py-2.5 text-left font-semibold text-gray-700 dark:text-gray-200 border-b-2 border-gray-300 dark:border-gray-600">{children}</th>
+          ),
+          td: ({ children }) => (
+            <td className="px-4 py-2.5 text-gray-600 dark:text-gray-300">{children}</td>
+          ),
           code({ className, children, ...props }) {
             const match = /language-(\w+)/.exec(className || '')
             return match ? (
