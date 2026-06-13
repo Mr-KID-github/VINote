@@ -18,6 +18,7 @@ env/
 # IDE
 .idea/
 .vscode/
+.codex/
 .claude/
 *.swp
 *.swo
@@ -28,6 +29,7 @@ nul
 frontend/.env
 frontend/.env.local
 frontend/.env.*.local
+frontend/src-tauri/target/
 node_modules/
 docs/.vitepress/cache/
 docs/.vitepress/dist/

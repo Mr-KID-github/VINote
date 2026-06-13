@@ -88,7 +88,7 @@ Frontend:
 cd frontend
 npm install
 cp .env.example .env.local
-npm run dev -- --host 0.0.0.0 --port 3100
+npm run web:dev
 ```
 
 Docs:
@@ -104,6 +104,45 @@ Windows convenience launcher:
 ```powershell
 .\start-dev.ps1
 ```
+
+## Desktop App
+
+The desktop app is built with Tauri 2 and reuses the existing React/Vite frontend. The current desktop package does not bundle the FastAPI backend, database, or FFmpeg; start the backend first through local development or Docker before using the desktop app. Development mode reaches the backend through the Vite proxy, while packaged desktop builds connect to `http://localhost:8900` by default.
+
+Install the Rust toolchain before working on the desktop app:
+
+```bash
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+```
+
+If Yarn is not installed, enable Corepack first:
+
+```bash
+corepack enable
+```
+
+Desktop hot-reload development mode:
+
+```bash
+cd frontend
+yarn dev
+```
+
+Equivalent npm command:
+
+```bash
+cd frontend
+npm run dev
+```
+
+Build the desktop installer for the current platform:
+
+```bash
+cd frontend
+npm run desktop:build
+```
+
+Tauri build artifacts are written to `frontend/src-tauri/target/release/bundle/`.
 
 ## Docker
 
