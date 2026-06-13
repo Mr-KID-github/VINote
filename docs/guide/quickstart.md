@@ -19,7 +19,7 @@ python main.py
 ```bash
 cd frontend
 npm install
-npm run dev
+npm run web:dev
 ```
 
 文档站：

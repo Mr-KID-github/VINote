@@ -88,7 +88,7 @@ uvicorn main:app --host 0.0.0.0 --port 8900 --reload
 cd frontend
 npm install
 cp .env.example .env.local
-npm run dev -- --host 0.0.0.0 --port 3100
+npm run web:dev
 ```
 
 文档站：
@@ -104,6 +104,45 @@ Windows 一键启动：
 ```powershell
 .\start-dev.ps1
 ```
+
+## 桌面 App
+
+桌面端基于 Tauri 2，复用现有 React/Vite 前端界面。当前桌面包不内置 FastAPI 后端、数据库或 FFmpeg；使用桌面端前需要先按本地开发或 Docker 方式启动后端服务。开发模式通过 Vite 代理访问后端，正式桌面包默认连接 `http://localhost:8900`。
+
+首次开发桌面端前需要安装 Rust 工具链：
+
+```bash
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+```
+
+如果本机没有 Yarn，可以先启用 Corepack：
+
+```bash
+corepack enable
+```
+
+桌面热更新开发模式：
+
+```bash
+cd frontend
+yarn dev
+```
+
+等价 npm 命令：
+
+```bash
+cd frontend
+npm run dev
+```
+
+生成当前系统的桌面应用包：
+
+```bash
+cd frontend
+npm run desktop:build
+```
+
+Tauri 构建产物默认输出到 `frontend/src-tauri/target/release/bundle/`，macOS 默认生成 `.app` 应用包。
 
 ## Docker
 

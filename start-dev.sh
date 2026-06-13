@@ -94,7 +94,7 @@ BACKEND_PID=$!
 # Start frontend
 info "Starting frontend..."
 cd "$SCRIPT_DIR/frontend"
-npm run dev -- --host 0.0.0.0 --port 3100 &
+npm run web:dev -- --host 0.0.0.0 --port 3100 &
 FRONTEND_PID=$!
 
 # Start docs

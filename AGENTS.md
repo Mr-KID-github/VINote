@@ -35,6 +35,7 @@ The backend can also run as a lightweight MCP server through `mcp_server.py`.
   - `components/`: reusable UI building blocks.
   - `stores/`: Zustand stores for auth, theme, note generation, note library, team workspace selection, model profiles, STT profiles, and language.
   - `lib/`: API wrapper, Supabase client, i18n copy, and model/STT profile client helpers.
+- `frontend/src-tauri/`: Tauri 2 desktop shell. `tauri.conf.json` starts Vite for desktop hot reload and bundles `frontend/dist` for desktop releases.
 - `supabase/`: local Supabase config, start scripts, and SQL migrations.
 - `scripts/`: repository-level diagnostics and deployment smoke checks such as `check_reverse_proxy.py` for validating backend health plus frontend `/api` proxying.
 - `tests/`: backend unit tests.
@@ -60,9 +61,11 @@ The backend can also run as a lightweight MCP server through `mcp_server.py`.
 - Backend dev server: `uvicorn main:app --host 0.0.0.0 --port 8900 --reload`
 - Backend direct run: `python main.py`
 - Frontend install: `cd frontend && npm install`
-- Frontend dev server: `cd frontend && npm run dev`
+- Frontend web dev server only: `cd frontend && npm run web:dev`
+- Tauri desktop hot-reload dev: `cd frontend && yarn dev` or `cd frontend && npm run dev`
 - Frontend build: `cd frontend && npm run build`
 - Frontend preview: `cd frontend && npm run preview`
+- Desktop app bundle build: `cd frontend && npm run desktop:build`
 - Docs install: `cd docs && npm install`
 - Docs dev server: `cd docs && npm run docs:dev`
 - Docs build: `cd docs && npm run docs:build`
@@ -78,6 +81,7 @@ Default local ports:
 - Frontend dev server: `http://localhost:3100`
 - Docs dev server: `http://localhost:3101`
 - Backend MCP endpoint: `http://127.0.0.1:8900/mcp`
+- Tauri desktop dev window: loads `http://127.0.0.1:3100`
 
 ## Environment and Configuration
 Backend settings live in root `.env` and are loaded by `app/config.py`.
@@ -95,11 +99,17 @@ Important backend variables:
 - `SHARE_BASE_URL`: optional override for generated public share links; when empty, the backend tries to infer a LAN URL automatically.
 - `MODEL_PROFILE_ENCRYPTION_KEY`: required to store/decrypt model profile API keys.
   - the same encryption key is also used for Groq STT profile API keys
+- `CORS_ALLOW_ORIGINS`: defaults include browser dev origins plus Tauri desktop origins such as `http://tauri.localhost` and `tauri://localhost`.
 
 Frontend Vite settings live in `frontend/.env.local`:
 - `VITE_API_BASE_URL` (leave empty for the local Vite proxy, or set an absolute backend URL)
 - `VITE_DOCS_BASE_URL` (optional absolute docs-site URL; when empty the app falls back to backend Swagger docs)
   - local dev special case: when the frontend runs on port `3100`, the sidebar `Document` link defaults to `http://localhost:3101/`
+
+Tauri desktop settings live in `frontend/src-tauri/tauri.conf.json`:
+- `beforeDevCommand` runs `npm run web:dev`, so Tauri desktop development gets Vite HMR.
+- `beforeBuildCommand` runs `npm run web:build:tauri`, which builds static assets with `VITE_API_BASE_URL=http://localhost:8900`.
+- Desktop bundles are generated under `frontend/src-tauri/target/release/bundle/`; macOS defaults to a `.app` bundle.
 
 Raspberry Pi deployment defaults live in `deploy/pi/local.env`:
 - `PI_HOST`, `PI_USER`, `PI_PORT`: SSH connection target for bootstrap and deploy scripts
@@ -120,6 +130,7 @@ Recommended checks after code changes:
 - Backend unit tests: `pytest tests`
 - Reverse-proxy smoke check: `python scripts/check_reverse_proxy.py --host 127.0.0.1 --backend-port 8900 --frontend-port 3100 --docs-port 3101`
 - Frontend type/build check: `cd frontend && npm run build`
+- Tauri config/environment check: `cd frontend && npm run tauri -- info`
 - Docs build check: `cd docs && npm run docs:build`
 - Raspberry Pi CI deploy script syntax check: `bash -n deploy/pi/deploy-from-checkout.sh`
 - API smoke check: open `http://127.0.0.1:8900/docs`

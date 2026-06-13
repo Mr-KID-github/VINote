@@ -17,7 +17,7 @@ uvicorn main:app --host 0.0.0.0 --port 8900 --reload
 
 ```bash
 cd frontend
-npm run dev
+npm run web:dev
 ```
 
 文档站：
