@@ -65,7 +65,7 @@ The backend can also run as a lightweight MCP server through `mcp_server.py`.
 - Tauri desktop hot-reload dev: `cd frontend && yarn dev` or `cd frontend && npm run dev`
 - Frontend build: `cd frontend && npm run build`
 - Frontend preview: `cd frontend && npm run preview`
-- Desktop build: `cd frontend && npm run desktop:build`
+- Desktop app bundle build: `cd frontend && npm run desktop:build`
 - Docs install: `cd docs && npm install`
 - Docs dev server: `cd docs && npm run docs:dev`
 - Docs build: `cd docs && npm run docs:build`
@@ -109,7 +109,7 @@ Frontend Vite settings live in `frontend/.env.local`:
 Tauri desktop settings live in `frontend/src-tauri/tauri.conf.json`:
 - `beforeDevCommand` runs `npm run web:dev`, so Tauri desktop development gets Vite HMR.
 - `beforeBuildCommand` runs `npm run web:build:tauri`, which builds static assets with `VITE_API_BASE_URL=http://localhost:8900`.
-- Desktop bundles are generated under `frontend/src-tauri/target/release/bundle/`.
+- Desktop bundles are generated under `frontend/src-tauri/target/release/bundle/`; macOS defaults to a `.app` bundle.
 
 Raspberry Pi deployment defaults live in `deploy/pi/local.env`:
 - `PI_HOST`, `PI_USER`, `PI_PORT`: SSH connection target for bootstrap and deploy scripts

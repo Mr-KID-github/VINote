@@ -135,14 +135,14 @@ cd frontend
 npm run dev
 ```
 
-生成当前系统的桌面安装包：
+生成当前系统的桌面应用包：
 
 ```bash
 cd frontend
 npm run desktop:build
 ```
 
-Tauri 构建产物默认输出到 `frontend/src-tauri/target/release/bundle/`。
+Tauri 构建产物默认输出到 `frontend/src-tauri/target/release/bundle/`，macOS 默认生成 `.app` 应用包。
 
 ## Docker
 

@@ -17,7 +17,7 @@ Frontend:
 
 ```bash
 cd frontend
-npm run dev
+npm run web:dev
 ```
 
 Docs site:

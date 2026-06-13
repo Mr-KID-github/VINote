@@ -135,14 +135,14 @@ cd frontend
 npm run dev
 ```
 
-Build the desktop installer for the current platform:
+Build the desktop app bundle for the current platform:
 
 ```bash
 cd frontend
 npm run desktop:build
 ```
 
-Tauri build artifacts are written to `frontend/src-tauri/target/release/bundle/`.
+Tauri build artifacts are written to `frontend/src-tauri/target/release/bundle/`; macOS defaults to a `.app` bundle.
 
 ## Docker
 

@@ -19,7 +19,7 @@ Frontend:
 ```bash
 cd frontend
 npm install
-npm run dev
+npm run web:dev
 ```
 
 Docs:
