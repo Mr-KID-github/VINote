@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import clsx from 'clsx'
 import { Plus, RotateCcw, Trash2, Wifi } from 'lucide-react'
 import { useI18n } from '../../lib/i18n'
@@ -40,6 +40,7 @@ const profileToDraft = (profile: ModelProfile): ModelProfileDraft => ({
 export function ModelProfileManager() {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [draft, setDraft] = useState<ModelProfileDraft>(makeDraft)
+  const formRef = useRef<HTMLFormElement>(null)
   const { copy } = useI18n()
 
   const {
@@ -71,6 +72,29 @@ export function ModelProfileManager() {
     setDraft(profileToDraft(profile))
   }
 
+  const readFormDraft = (): ModelProfileDraft => {
+    const form = formRef.current
+    if (!form) {
+      return draft
+    }
+
+    const formData = new FormData(form)
+    const field = (name: string, fallback: string) => {
+      const value = formData.get(name)
+      return typeof value === 'string' ? value : fallback
+    }
+
+    return {
+      name: field('name', draft.name),
+      provider: field('provider', draft.provider) as ProviderType,
+      baseUrl: field('baseUrl', draft.baseUrl),
+      modelName: field('modelName', draft.modelName),
+      apiKey: field('apiKey', draft.apiKey),
+      isDefault: formData.has('isDefault'),
+      isActive: formData.has('isActive'),
+    }
+  }
+
   const handleProviderChange = (provider: ProviderType) => {
     const previousMeta = providerOptions.find((item) => item.value === draft.provider)
     const meta = providerOptions.find((item) => item.value === provider)
@@ -85,20 +109,26 @@ export function ModelProfileManager() {
   }
 
   const handleSave = async () => {
+    if (!formRef.current?.reportValidity()) {
+      return
+    }
+
+    const formDraft = readFormDraft()
     if (editingId) {
-      await updateProfile(editingId, draft)
+      await updateProfile(editingId, formDraft)
     } else {
-      await createProfile(draft)
+      await createProfile(formDraft)
     }
     resetForm()
   }
 
   const handleTest = async () => {
-    if (editingId && !draft.apiKey.trim()) {
+    const formDraft = readFormDraft()
+    if (editingId && !formDraft.apiKey.trim()) {
       await testProfile(editingId)
       return
     }
-    await testDraft(draft)
+    await testDraft(formDraft)
   }
 
   return (
@@ -199,7 +229,14 @@ export function ModelProfileManager() {
         </div>
 
         <aside className="xl:sticky xl:top-8 xl:self-start">
-          <section className="space-y-4 rounded-3xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-[#1b1b1b]">
+          <form
+            ref={formRef}
+            onSubmit={(event) => {
+              event.preventDefault()
+              void handleSave()
+            }}
+            className="space-y-4 rounded-3xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-[#1b1b1b]"
+          >
           <div className="flex items-start justify-between gap-4">
             <div>
               <div className="flex items-center gap-2">
@@ -222,6 +259,8 @@ export function ModelProfileManager() {
           <div>
             <label className="block text-sm font-medium mb-2">{copy.modelProfiles.name}</label>
             <input
+              name="name"
+              required
               value={draft.name}
               onChange={(event) => setDraft((current) => ({ ...current, name: event.target.value }))}
               placeholder={copy.modelProfiles.namePlaceholder}
@@ -232,6 +271,7 @@ export function ModelProfileManager() {
           <div>
             <label className="block text-sm font-medium mb-2">{copy.modelProfiles.provider}</label>
             <select
+              name="provider"
               value={draft.provider}
               onChange={(event) => handleProviderChange(event.target.value as ProviderType)}
               className="w-full px-4 py-2.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#191919] outline-none focus:ring-2 focus:ring-primary-light"
@@ -247,6 +287,8 @@ export function ModelProfileManager() {
           <div>
             <label className="block text-sm font-medium mb-2">{copy.modelProfiles.baseUrl}</label>
             <input
+              name="baseUrl"
+              required
               value={draft.baseUrl}
               onChange={(event) => setDraft((current) => ({ ...current, baseUrl: event.target.value }))}
               placeholder={providerOptions.find((item) => item.value === draft.provider)?.defaultBaseUrl}
@@ -257,6 +299,8 @@ export function ModelProfileManager() {
           <div>
             <label className="block text-sm font-medium mb-2">{copy.modelProfiles.model}</label>
             <input
+              name="modelName"
+              required
               value={draft.modelName}
               onChange={(event) => setDraft((current) => ({ ...current, modelName: event.target.value }))}
               placeholder={copy.modelProfiles.modelPlaceholder}
@@ -269,6 +313,8 @@ export function ModelProfileManager() {
               {copy.modelProfiles.apiKey} {editingId ? <span className="text-xs text-gray-400">{copy.modelProfiles.keepCurrentKey}</span> : null}
             </label>
             <input
+              name="apiKey"
+              required={!editingId}
               type="password"
               value={draft.apiKey}
               onChange={(event) => setDraft((current) => ({ ...current, apiKey: event.target.value }))}
@@ -279,6 +325,7 @@ export function ModelProfileManager() {
 
           <label className="flex items-center gap-3">
             <input
+              name="isDefault"
               type="checkbox"
               checked={draft.isDefault}
               onChange={(event) => setDraft((current) => ({ ...current, isDefault: event.target.checked }))}
@@ -289,6 +336,7 @@ export function ModelProfileManager() {
 
           <label className="flex items-center gap-3">
             <input
+              name="isActive"
               type="checkbox"
               checked={draft.isActive}
               onChange={(event) => setDraft((current) => ({ ...current, isActive: event.target.checked }))}
@@ -316,6 +364,7 @@ export function ModelProfileManager() {
 
           <div className="grid gap-3 sm:grid-cols-2">
             <button
+              type="button"
               onClick={() => void handleTest()}
               disabled={saving}
               className="inline-flex items-center justify-center gap-2 rounded-xl border border-gray-200 px-4 py-3 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors disabled:opacity-60"
@@ -324,14 +373,14 @@ export function ModelProfileManager() {
               {copy.modelProfiles.testConnection}
             </button>
             <button
-              onClick={() => void handleSave()}
-              disabled={saving || !draft.name.trim() || !draft.baseUrl.trim() || !draft.modelName.trim() || (!editingId && !draft.apiKey.trim())}
+              type="submit"
+              disabled={saving}
               className="rounded-xl bg-primary-light px-4 py-3 text-white font-medium hover:opacity-90 transition-opacity disabled:opacity-60 dark:bg-primary-dark"
             >
               {editingId ? copy.modelProfiles.saveChanges : copy.modelProfiles.createProfile}
             </button>
           </div>
-          </section>
+          </form>
         </aside>
       </div>
     </section>

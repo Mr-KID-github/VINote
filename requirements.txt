@@ -7,7 +7,7 @@ python-dotenv==1.0.1
 python-multipart==0.0.20
 
 # Video/Audio download
-yt-dlp==2024.12.23
+yt-dlp==2026.6.9
 
 # Audio transcription
 # openai-whisper==20240930  # Alternative: original whisper (requires C++ build tools on Windows)
@@ -23,7 +23,7 @@ pydantic==2.10.4
 PyJWT==2.10.1
 cryptography==44.0.0
 SQLAlchemy==2.0.36
-psycopg==3.2.4
+psycopg[binary]==3.2.4
 passlib[bcrypt]==1.7.4
 bcrypt==4.0.1
 Markdown==3.7

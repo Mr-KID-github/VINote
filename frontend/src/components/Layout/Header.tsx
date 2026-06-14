@@ -4,6 +4,8 @@ import { useI18n } from '../../lib/i18n'
 import { useAuthStore } from '../../stores/authStore'
 import { ThemeToggle } from './ThemeToggle'
 
+const brandMarkUrl = `${import.meta.env.BASE_URL}vinote-mark.svg`
+
 interface HeaderProps {
   sidebarCollapsed: boolean
   onToggleSidebar: () => void
@@ -31,7 +33,10 @@ export function Header({ sidebarCollapsed, onToggleSidebar }: HeaderProps) {
         >
           {sidebarCollapsed ? <PanelLeftOpen className="h-[18px] w-[18px]" /> : <PanelLeftClose className="h-[18px] w-[18px]" />}
         </button>
-        <h1 className="text-xl font-bold text-primary-light dark:text-primary-dark">VINote</h1>
+        <div className="flex items-center gap-2">
+          <img src={brandMarkUrl} alt="" className="h-8 w-8" />
+          <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">VINote</h1>
+        </div>
       </div>
 
       <div className="flex items-center gap-2">

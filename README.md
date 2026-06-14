@@ -91,6 +91,19 @@ cp .env.example .env.local
 npm run web:dev
 ```
 
+也可以在仓库根目录直接启动开发环境：
+
+```bash
+yarn dev         # 后端 + Tauri 桌面客户端
+yarn api:dev     # 仅后端
+yarn client:dev  # 仅 Tauri 桌面客户端
+yarn web:dev     # 仅浏览器 Web 客户端
+```
+
+如果 `3100` 端口上已经有 VINote 的 Vite 开发服务器，桌面开发模式会直接复用它。
+`yarn dev` 会自动选择已安装后端依赖的 Python；如需手动指定，可设置 `VINOTE_PYTHON=/path/to/python`。
+如果 `.env` 中的本地 Postgres 暂时不可达，`yarn dev` 会仅在当前开发会话中临时改用 `data/vinote.dev.db` SQLite 数据库，不会修改 `.env`。
+
 文档站：
 
 ```bash

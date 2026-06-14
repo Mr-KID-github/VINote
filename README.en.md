@@ -91,6 +91,19 @@ cp .env.example .env.local
 npm run web:dev
 ```
 
+You can also start the development environment directly from the repository root:
+
+```bash
+yarn dev         # backend + Tauri desktop client
+yarn api:dev     # backend only
+yarn client:dev  # Tauri desktop client only
+yarn web:dev     # browser web client only
+```
+
+When VINote's Vite dev server is already running on port `3100`, desktop development mode reuses it.
+`yarn dev` automatically selects a Python executable that has the backend dependencies installed; set `VINOTE_PYTHON=/path/to/python` to override it.
+If the local Postgres URL from `.env` is not reachable, `yarn dev` temporarily uses `data/vinote.dev.db` SQLite for that development session without modifying `.env`.
+
 Docs:
 
 ```bash

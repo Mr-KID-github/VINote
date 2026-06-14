@@ -60,6 +60,12 @@ The backend can also run as a lightweight MCP server through `mcp_server.py`.
 - Optional local transcriber extras: `pip install -r requirements.local-transcribers.txt` when using `TRANSCRIBER_TYPE=faster-whisper`
 - Backend dev server: `uvicorn main:app --host 0.0.0.0 --port 8900 --reload`
 - Backend direct run: `python main.py`
+- Root desktop + backend shortcut: `yarn dev`
+- Root backend-only shortcut: `yarn api:dev`
+- Root desktop-client-only shortcut: `yarn client:dev`
+- Root browser frontend shortcut: `yarn web:dev`
+  - `yarn dev` auto-selects a Python executable with backend dependencies; `VINOTE_PYTHON=/path/to/python` overrides it.
+  - If the configured local Postgres is unreachable, `yarn dev` temporarily uses `data/vinote.dev.db` SQLite for that session without editing `.env`.
 - Frontend install: `cd frontend && npm install`
 - Frontend web dev server only: `cd frontend && npm run web:dev`
 - Tauri desktop hot-reload dev: `cd frontend && yarn dev` or `cd frontend && npm run dev`
@@ -107,7 +113,7 @@ Frontend Vite settings live in `frontend/.env.local`:
   - local dev special case: when the frontend runs on port `3100`, the sidebar `Document` link defaults to `http://localhost:3101/`
 
 Tauri desktop settings live in `frontend/src-tauri/tauri.conf.json`:
-- `beforeDevCommand` runs `npm run web:dev`, so Tauri desktop development gets Vite HMR.
+- `beforeDevCommand` runs `bash ../scripts/ensure-web-dev.sh`, so Tauri desktop development reuses an existing Vite server on port `3100` or starts one when needed.
 - `beforeBuildCommand` runs `npm run web:build:tauri`, which builds static assets with `VITE_API_BASE_URL=http://localhost:8900`.
 - Desktop bundles are generated under `frontend/src-tauri/target/release/bundle/`; macOS defaults to a `.app` bundle.
 
