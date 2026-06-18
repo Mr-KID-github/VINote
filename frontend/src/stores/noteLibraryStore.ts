@@ -54,6 +54,7 @@ interface NoteLibraryState {
     videoUrl?: string,
     taskId?: string,
     workspace?: WorkspaceSelection,
+    sourceType?: string,
   ) => Promise<NoteRecord | null>
   updateNote: (id: string, title: string, content: string) => Promise<NoteRecord | null>
   deleteNote: (id: string) => Promise<void>
@@ -150,7 +151,7 @@ export const useNoteLibraryStore = create<NoteLibraryState>((set, get) => ({
       return null
     }
   },
-  saveNote: async (title, content, videoUrl, taskId, workspace) => {
+  saveNote: async (title, content, videoUrl, taskId, workspace, sourceType) => {
     try {
       const normalizedTitle = title.trim() || 'Untitled note'
       const currentWorkspace = workspace ?? { scope: 'personal' as const }
@@ -162,7 +163,7 @@ export const useNoteLibraryStore = create<NoteLibraryState>((set, get) => ({
           content,
           video_url: videoUrl || null,
           task_id: taskId || null,
-          source_type: videoUrl ? 'video' : 'file',
+          source_type: sourceType || (videoUrl ? 'video' : 'file'),
           status: 'done',
           scope: currentWorkspace.scope,
           team_id: currentWorkspace.scope === 'team' ? currentWorkspace.teamId : null,

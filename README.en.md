@@ -17,6 +17,7 @@ Current stack:
 ## Core capabilities
 
 - Generate structured Markdown notes from video URLs, local audio/video files, or local transcript files
+- Record meetings from a minimalist in-app floating recorder, then automatically transcribe and summarize them
 - Skip the STT step when a transcript is already available
 - Support multiple summary modes: `default`, `accurate`, `oneshot`
 - Add key moments, timestamp jumps, and screenshots
@@ -29,6 +30,7 @@ Current stack:
 ## Input modes
 
 - The browser generator supports three source modes: video URL, local media file, and local transcript
+- The meeting recorder uploads browser recordings as local audio and saves the result with `source_type = meeting_recording`
 - `POST /api/generate` handles remote URL input
 - `POST /api/generate_from_upload` handles browser multipart uploads for local audio, video, and transcript files
 - Transcript uploads support `TXT`, `MD`, `SRT`, `VTT`, and `JSON` and skip STT entirely
@@ -121,6 +123,7 @@ Windows convenience launcher:
 ## Desktop App
 
 The desktop app is built with Tauri 2 and reuses the existing React/Vite frontend. The current desktop package does not bundle the FastAPI backend, database, or FFmpeg; start the backend first through local development or Docker before using the desktop app. Development mode reaches the backend through the Vite proxy, while packaged desktop builds connect to `http://localhost:8900` by default.
+The meeting recorder uses the same frontend flow in desktop and web builds: clicking the bottom-right `Meeting recording` button immediately requests microphone access and starts recording.
 
 Install the Rust toolchain before working on the desktop app:
 
@@ -296,6 +299,7 @@ Useful checks:
 - Backend health: `GET /healthz`
 - Swagger: `http://127.0.0.1:8900/docs`
 - Browser smoke test: verify URL, local media, and local transcript generation paths
+- Frontend tests: `cd frontend && npm run test`
 - Frontend build:
 
 ```bash

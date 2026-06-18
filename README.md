@@ -17,6 +17,7 @@ VINote 是一个将视频或音频内容转换为结构化 Markdown 笔记的全
 ## 核心能力
 
 - 从视频 URL、本地音频/视频文件或本地文字稿生成结构化 Markdown 笔记
+- 支持应用内简约会议录音悬浮窗，录音结束后自动转写并生成会议纪要
 - 已有文字稿时可直接跳过 STT，缩短生成链路并减少额外转写成本
 - 支持多种总结模式：`default`、`accurate`、`oneshot`
 - 自动补充关键时刻、时间戳跳转和截图
@@ -29,6 +30,7 @@ VINote 是一个将视频或音频内容转换为结构化 Markdown 笔记的全
 ## 输入入口
 
 - 浏览器生成页支持三种模式：视频 URL、本地音频/视频文件、本地文字稿
+- 会议录音悬浮窗会把浏览器录音作为本地音频上传，并将结果保存为 `meeting_recording` 类型笔记
 - `POST /api/generate` 处理 URL 输入
 - `POST /api/generate_from_upload` 处理浏览器上传的本地音频、视频和文字稿
 - 上传文字稿时支持 `TXT`、`MD`、`SRT`、`VTT`、`JSON`，并直接跳过 STT
@@ -121,6 +123,7 @@ Windows 一键启动：
 ## 桌面 App
 
 桌面端基于 Tauri 2，复用现有 React/Vite 前端界面。当前桌面包不内置 FastAPI 后端、数据库或 FFmpeg；使用桌面端前需要先按本地开发或 Docker 方式启动后端服务。开发模式通过 Vite 代理访问后端，正式桌面包默认连接 `http://localhost:8900`。
+会议录音入口在桌面端和 Web 端共用同一套前端流程：点击右下角 `会议录音` 按钮后会直接请求麦克风权限并开始录音。
 
 首次开发桌面端前需要安装 Rust 工具链：
 
@@ -296,6 +299,7 @@ workflow 会：
 - 后端健康检查：`GET /healthz`
 - Swagger：`http://127.0.0.1:8900/docs`
 - 浏览器上传冒烟：分别测试 URL、本地音视频、本地文字稿三种生成入口
+- 前端测试：`cd frontend && npm run test`
 - 前端构建：
 
 ```bash

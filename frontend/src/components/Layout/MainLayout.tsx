@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Outlet } from 'react-router-dom'
 import { Sidebar } from './Sidebar'
 import { Header } from './Header'
+import { MeetingRecorderDock } from '../MeetingRecorder/MeetingRecorderDock'
 
 const SIDEBAR_COLLAPSED_KEY = 'vinote.sidebar.collapsed'
 
@@ -30,6 +31,7 @@ export function MainLayout() {
           <Outlet />
         </main>
       </div>
+      <MeetingRecorderDock />
     </div>
   )
 }
