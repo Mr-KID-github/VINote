@@ -23,7 +23,7 @@ pydantic==2.10.4
 PyJWT==2.10.1
 cryptography==44.0.0
 SQLAlchemy==2.0.36
-psycopg[binary]==3.2.4
+psycopg==3.2.4
 passlib[bcrypt]==1.7.4
 bcrypt==4.0.1
 Markdown==3.7

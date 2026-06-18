@@ -82,6 +82,13 @@ class YtdlpDownloaderBilibiliFallbackTest(unittest.TestCase):
 
         self.assertEqual(video_url, "https://example.test/720p-avc.m4s")
 
+    def test_bilibili_headers_include_origin_and_referer(self):
+        headers = YtdlpDownloader._bilibili_headers()
+
+        self.assertEqual(headers["Origin"], "https://www.bilibili.com")
+        self.assertEqual(headers["Referer"], "https://www.bilibili.com/")
+        self.assertIn("Mozilla/5.0", headers["User-Agent"])
+
     def test_bilibili_curl_fallback_downloads_and_converts_audio(self):
         downloader = YtdlpDownloader()
         page_html = (

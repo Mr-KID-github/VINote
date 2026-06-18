@@ -511,6 +511,7 @@ class YtdlpDownloader(Downloader):
     def _bilibili_headers() -> dict[str, str]:
         return {
             "Referer": "https://www.bilibili.com/",
+            "Origin": "https://www.bilibili.com",
             "User-Agent": (
                 "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
                 "AppleWebKit/537.36 (KHTML, like Gecko) "
