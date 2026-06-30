@@ -173,6 +173,9 @@ export function STTProfileManager() {
     setDraft(getDefaultDraft())
   }
 
+  const editingProfile = editingId ? profiles.find((profile) => profile.id === editingId) : null
+  const editingDefaultProfile = Boolean(editingProfile?.isDefault)
+
   const startEdit = (profile: STTProfile) => {
     setEditingId(profile.id)
     setDraft(profileToDraft(profile))
@@ -188,10 +191,11 @@ export function STTProfileManager() {
   }
 
   const handleSave = async () => {
+    const draftToSave = editingDefaultProfile ? { ...draft, isDefault: true } : draft
     if (editingId) {
-      await updateProfile(editingId, draft)
+      await updateProfile(editingId, draftToSave)
     } else {
-      await createProfile(draft)
+      await createProfile(draftToSave)
     }
     resetForm()
   }
@@ -442,7 +446,8 @@ export function STTProfileManager() {
             <input
               type="checkbox"
               checked={draft.isDefault}
-              onChange={(event) => setDraft((current) => ({ ...current, isDefault: event.target.checked }))}
+              disabled={editingDefaultProfile}
+              onChange={(event) => setDraft((current) => ({ ...current, isDefault: editingDefaultProfile || event.target.checked }))}
               className="w-4 h-4"
             />
             <span className="text-sm">{copy.sttProfiles.useAsDefault}</span>
