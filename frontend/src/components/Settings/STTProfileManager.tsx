@@ -227,7 +227,7 @@ export function STTProfileManager() {
             </div>
             <button
               onClick={resetForm}
-              className="inline-flex items-center justify-center gap-2 self-start rounded-xl border border-gray-200 px-4 py-2.5 font-medium hover:bg-gray-100 dark:border-gray-700 dark:hover:bg-gray-800 transition-colors"
+              className="inline-flex items-center justify-center gap-2 self-start whitespace-nowrap rounded-xl border border-gray-200 px-4 py-2.5 font-medium hover:bg-gray-100 dark:border-gray-700 dark:hover:bg-gray-800 transition-colors"
             >
               <Plus className="w-4 h-4" />
               {copy.sttProfiles.newProfile}
