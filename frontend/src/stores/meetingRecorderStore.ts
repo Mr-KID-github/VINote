@@ -12,6 +12,7 @@ export type MeetingRecorderPhase =
   | 'recording'
   | 'paused'
   | 'stopping'
+  | 'stopped'
   | MeetingRecorderStage
   | 'completed'
   | 'failed'
@@ -90,7 +91,7 @@ const initialState = {
 function hasRecoveryRisk(state: Pick<MeetingRecorderState, 'phase' | 'recordedAudio' | 'generatedNote' | 'noteId'>) {
   if (state.noteId) return false
   if (state.recordedAudio || state.generatedNote) return true
-  return ['recording', 'paused', 'stopping', 'uploading', 'transcribing', 'summarizing', 'saving'].includes(state.phase)
+  return ['recording', 'paused', 'stopping', 'stopped', 'uploading', 'transcribing', 'summarizing', 'saving'].includes(state.phase)
 }
 
 export const useMeetingRecorderStore = create<MeetingRecorderState>((set, get) => ({
