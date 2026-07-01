@@ -157,7 +157,12 @@ export function STTProfileManager() {
     loading,
     saving,
     error,
+    localSupport,
+    localSupportLoading,
+    installingLocalSupport,
     loadProfiles,
+    loadLocalSupport,
+    installLocalSupport,
     createProfile,
     updateProfile,
     deleteProfile,
@@ -167,6 +172,12 @@ export function STTProfileManager() {
   useEffect(() => {
     void loadProfiles()
   }, [loadProfiles])
+
+  useEffect(() => {
+    if (draft.provider === 'faster-whisper') {
+      void loadLocalSupport()
+    }
+  }, [draft.provider, loadLocalSupport])
 
   const resetForm = () => {
     setEditingId(null)
@@ -207,6 +218,7 @@ export function STTProfileManager() {
   const showDevice = draft.provider === 'whisper' || draft.provider === 'faster-whisper'
   const showComputeType = draft.provider === 'faster-whisper'
   const showUseGpu = draft.provider === 'sensevoice-local'
+  const showLocalSupport = draft.provider === 'faster-whisper'
   const availableLanguageOptions = languageOptions.filter((option) => (
     draft.provider === 'groq' ? option.value !== 'auto' : option.value !== ''
   ))
@@ -343,6 +355,37 @@ export function STTProfileManager() {
               ))}
             </select>
           </div>
+
+          {showLocalSupport && (
+            <div
+              className={clsx(
+                'rounded-2xl border p-4 text-sm',
+                localSupport?.installed
+                  ? 'border-green-200 bg-green-50 text-green-800 dark:border-green-900/40 dark:bg-green-900/15 dark:text-green-200'
+                  : 'border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900/40 dark:bg-amber-900/15 dark:text-amber-200'
+              )}
+            >
+              <p className="font-medium">
+                {localSupportLoading
+                  ? copy.sttProfiles.loading
+                  : localSupport?.message || (localSupport?.installed ? copy.sttProfiles.localSupportInstalled : copy.sttProfiles.localSupportMissing)}
+              </p>
+              <p className="mt-1 text-xs opacity-80">{copy.sttProfiles.localSupportModelHint}</p>
+              <code className="mt-3 block rounded-lg bg-white/70 px-3 py-2 text-xs text-gray-700 dark:bg-black/20 dark:text-gray-200">
+                {localSupport?.installCommand || 'pip install -r requirements.local-transcribers.txt'}
+              </code>
+              {!localSupport?.installed && (
+                <button
+                  type="button"
+                  onClick={() => void installLocalSupport()}
+                  disabled={installingLocalSupport}
+                  className="mt-3 rounded-xl border border-amber-300 bg-white px-3 py-2 text-sm font-medium text-amber-800 hover:bg-amber-100 disabled:opacity-60 dark:border-amber-800 dark:bg-transparent dark:text-amber-200 dark:hover:bg-amber-900/20"
+                >
+                  {installingLocalSupport ? copy.sttProfiles.localSupportInstalling : copy.sttProfiles.localSupportInstall}
+                </button>
+              )}
+            </div>
+          )}
 
           {showModel && (
             <div>
