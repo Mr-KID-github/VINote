@@ -88,47 +88,43 @@ describe('MeetingRecorderDock', () => {
     saveNoteMock.mockResolvedValue({ id: 'note-1', title: '会议录音', content: '# Summary' })
   })
 
-  it('starts recording from a compact web-sized pill and opens a lightweight recorder panel', async () => {
+  it('shows the smallest circular idle launcher and does not start recording until Start is clicked', async () => {
     renderDock()
 
-    const compactPill = screen.getByRole('button', { name: '开始会议录音' })
-    expect(compactPill.className).toContain('h-12')
-    expect(compactPill.className).toContain('gap-3')
-    expect(compactPill.className).not.toContain('h-[72px]')
-    expect(compactPill.className).not.toContain('text-[22px]')
+    const idleLauncher = screen.getByRole('button', { name: '开始会议录音' })
+    expect(idleLauncher.className).toContain('h-[52px]')
+    expect(idleLauncher.className).toContain('w-[52px]')
+    expect(idleLauncher.className).not.toContain('h-12')
+    expect(idleLauncher.className).not.toContain('gap-3')
 
-    await userEvent.click(compactPill)
+    await userEvent.click(idleLauncher)
 
     const panel = screen.getByRole('region', { name: '会议录音' })
-    expect(audioRecorderMock.start).toHaveBeenCalledTimes(1)
+    expect(audioRecorderMock.start).not.toHaveBeenCalled()
     expect(panel).toBeInTheDocument()
     expect(panel.className).toContain('w-[360px]')
-    expect(panel.className).not.toContain('w-[520px]')
     expect(panel).toHaveStyle({ right: '20px', bottom: '20px' })
-    expect(screen.getByText('00:00:00')).toBeInTheDocument()
-    expect(screen.getByLabelText('录音波形')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: '暂停' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: '结束' })).toBeInTheDocument()
+    expect(screen.getByLabelText('拖动会议录音浮窗')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '关闭' })).toBeInTheDocument()
+    expect(screen.getByText('准备就绪')).toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: '开始' }))
+    expect(audioRecorderMock.start).toHaveBeenCalledTimes(1)
+    expect(screen.getByText('录音中')).toBeInTheDocument()
   })
 
-  it('protects recoverable recording data with an in-app discard confirmation instead of silent close', async () => {
+  it('uses Stop to keep recorded audio and Finish to generate the meeting note', async () => {
     renderDock()
 
     await userEvent.click(screen.getByRole('button', { name: '开始会议录音' }))
-    act(() => {
-      useMeetingRecorderStore.getState().setRecordedAudio(new Blob(['audio'], { type: 'audio/webm' }))
-    })
-    await userEvent.click(screen.getByRole('button', { name: '关闭' }))
+    await userEvent.click(screen.getByRole('button', { name: '开始' }))
+    await userEvent.click(screen.getByRole('button', { name: '停止' }))
 
-    expect(screen.getByRole('dialog', { name: '放弃这段会议录音？' })).toBeInTheDocument()
-    expect(screen.getByText(/会议录音很难重新获得/)).toBeInTheDocument()
-  })
+    expect(audioRecorderMock.stop).toHaveBeenCalledTimes(1)
+    expect(meetingGenerationMock.submitMeetingRecording).not.toHaveBeenCalled()
+    expect(screen.getByText('已停止')).toBeInTheDocument()
 
-  it('finishes a recording, reports processing stages, saves through the existing note flow, and shows open-note action', async () => {
-    renderDock()
-
-    await userEvent.click(screen.getByRole('button', { name: '开始会议录音' }))
-    await userEvent.click(screen.getByRole('button', { name: '结束' }))
+    await userEvent.click(screen.getByRole('button', { name: '完成' }))
 
     await waitFor(() => {
       expect(meetingGenerationMock.submitMeetingRecording).toHaveBeenCalledWith(expect.objectContaining({
@@ -145,14 +141,46 @@ describe('MeetingRecorderDock', () => {
     expect(screen.getByRole('button', { name: '查看纪要' })).toBeInTheDocument()
   })
 
-  it('keeps generated content and makes save retry explicit after save failure', async () => {
+  it('protects recoverable recording data with an in-app discard confirmation from the cross close button', async () => {
     renderDock()
+
+    await userEvent.click(screen.getByRole('button', { name: '开始会议录音' }))
+    await userEvent.click(screen.getByRole('button', { name: '开始' }))
+    act(() => {
+      useMeetingRecorderStore.getState().setRecordedAudio(new Blob(['audio'], { type: 'audio/webm' }))
+    })
+    await userEvent.click(screen.getByRole('button', { name: '关闭' }))
+
+    expect(screen.getByRole('dialog', { name: '放弃这段会议录音？' })).toBeInTheDocument()
+    expect(screen.getByText(/会议录音很难重新获得/)).toBeInTheDocument()
+  })
+
+  it('uses the pill as the minimized view and includes a small drag affordance dot', async () => {
+    renderDock()
+
+    await userEvent.click(screen.getByRole('button', { name: '开始会议录音' }))
+    await userEvent.click(screen.getByRole('button', { name: '最小化' }))
+
+    const minimizedPill = screen.getByRole('button', { name: '恢复会议录音' })
+    const minimizedShell = minimizedPill.parentElement
+    expect(minimizedShell?.className).toContain('h-12')
+    expect(minimizedShell?.className).toContain('gap-3')
+    expect(screen.getByLabelText('拖动已最小化的会议录音')).toBeInTheDocument()
+  })
+
+  it('keeps generated content and shows save retry messaging in the status line instead of a reserved bottom card', async () => {
+    renderDock()
+    await userEvent.click(screen.getByRole('button', { name: '开始会议录音' }))
     act(() => {
       useMeetingRecorderStore.getState().setGeneratedNote({ title: '会议录音', markdown: '# Summary', taskId: 'task-1' })
       useMeetingRecorderStore.getState().failStage('saving', '保存失败')
     })
 
-    expect(screen.getByText(/重试将复用已生成的纪要内容重新保存/)).toBeInTheDocument()
+    const statusLine = screen.getByTestId('meeting-recorder-status')
+    expect(statusLine).toHaveTextContent('保存失败')
+    expect(statusLine).toHaveTextContent('重试将复用已生成的纪要内容重新保存')
+    expect(screen.queryByText('处理会议录音')).not.toBeInTheDocument()
+
     await userEvent.click(screen.getByRole('button', { name: '重试' }))
 
     await waitFor(() => {
@@ -162,6 +190,7 @@ describe('MeetingRecorderDock', () => {
 
   it('retries transcription or summary from the existing task when upload already succeeded', async () => {
     renderDock()
+    await userEvent.click(screen.getByRole('button', { name: '开始会议录音' }))
     act(() => {
       useMeetingRecorderStore.getState().setTaskId('task-1')
       useMeetingRecorderStore.getState().failStage('summarizing', '总结失败')
@@ -189,15 +218,18 @@ describe('MeetingRecorderDock', () => {
     expect(navigate).toHaveBeenCalledWith('/note/note-1')
   })
 
-  it('explains model configuration failures from the generation API', async () => {
+  it('explains model configuration failures from the generation API in the status line', async () => {
     meetingGenerationMock.completeMeetingRecordingGeneration.mockRejectedValue(
       new Error('Error code: 401 - invalid_api_key'),
     )
     renderDock()
 
     await userEvent.click(screen.getByRole('button', { name: '开始会议录音' }))
-    await userEvent.click(screen.getByRole('button', { name: '结束' }))
+    await userEvent.click(screen.getByRole('button', { name: '开始' }))
+    await userEvent.click(screen.getByRole('button', { name: '停止' }))
+    await userEvent.click(screen.getByRole('button', { name: '完成' }))
 
-    expect(await screen.findByText('请先配置可用的 LLM 和 STT API Key，再生成会议纪要。')).toBeInTheDocument()
+    const statusLine = await screen.findByTestId('meeting-recorder-status')
+    expect(statusLine).toHaveTextContent('请先配置可用的 LLM 和 STT API Key，再生成会议纪要。')
   })
 })
