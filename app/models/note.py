@@ -21,6 +21,7 @@ class NoteRequest(BaseModel):
     extras: Optional[str] = None
     output_language: Optional[OutputLanguage] = None
     model_profile_id: Optional[str] = None
+    stt_profile_id: Optional[str] = None
     model_name: Optional[str] = None
     api_key: Optional[str] = None
     base_url: Optional[str] = None
@@ -34,6 +35,7 @@ class LocalFileRequest(BaseModel):
     extras: Optional[str] = None
     output_language: Optional[OutputLanguage] = None
     model_profile_id: Optional[str] = None
+    stt_profile_id: Optional[str] = None
     model_name: Optional[str] = None
     api_key: Optional[str] = None
     base_url: Optional[str] = None

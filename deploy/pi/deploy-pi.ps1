@@ -46,7 +46,7 @@ if (Test-Path $localConfigPath) {
         }
 
         $parts = $_ -split '=', 2
-        $key = $parts[0].Trim()
+        $key = $parts[0].Trim().TrimStart([char]0xFEFF)
         $value = $parts[1].Trim()
 
         switch ($key) {

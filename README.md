@@ -1,127 +1,70 @@
 # VINote
 
-VINote is a full-stack app that turns video or audio into structured Markdown notes.
+[English README](./README.en.md)
 
-Current stack:
+VINote 是一个将视频或音频内容转换为结构化 Markdown 笔记的全栈工作台。
 
-- Frontend: React 18 + Vite + TypeScript
-- Backend: FastAPI
-- Database: PostgreSQL
-- Auth: FastAPI-issued JWT stored in an HttpOnly cookie
-- Deployment target: local Docker and Raspberry Pi LAN Docker
+当前版本：`v0.2.0`
 
-## Architecture
+当前技术栈：
 
-High-level flow:
+- 前端：React 18 + Vite + TypeScript
+- 后端：FastAPI
+- 数据库：PostgreSQL
+- 认证：FastAPI 签发 JWT，并通过 HttpOnly Cookie 保存会话
+- 部署目标：本地 Docker 与树莓派局域网 Docker
 
-```text
-Browser
-  -> Frontend (React)
-  -> FastAPI API
-     -> Auth service
-     -> Note generation pipeline
-     -> Notes / preferences / model profiles repositories
-     -> PostgreSQL
-     -> output/ task artifacts
-```
+## 核心能力
 
-Main backend responsibilities:
+- 从视频 URL、本地音频/视频文件或本地文字稿生成结构化 Markdown 笔记
+- 支持应用内简约会议录音悬浮窗，录音结束后自动转写并生成会议纪要
+- 已有文字稿时可直接跳过 STT，缩短生成链路并减少额外转写成本
+- 支持多种总结模式：`default`、`accurate`、`oneshot`
+- 自动补充关键时刻、时间戳跳转和截图
+- 保存笔记并在内置编辑器中继续修改
+- 支持公开只读分享链接
+- 支持 LLM / STT 配置管理
+- 同时提供独立文档站与 FastAPI Swagger / ReDoc
+- 文档支持中英文双语，默认中文，英文入口为 `/en/`
 
-- `app/routers/`
-  - HTTP routes only
-- `app/services/note_service.py`
-  - note generation orchestration
-- `app/services/note_media_service.py`
-  - selects key moments from the generated note and injects timestamp jump links plus screenshot markers only for those moments
-- `app/services/auth_service.py`
-  - email/password auth, JWT issue/verify, auth cookie handling
-- `app/services/note_repository.py`
-  - saved note CRUD
-- `app/services/preferences_repository.py`
-  - user preference persistence
-- `app/services/model_profile_repository.py`
-  - encrypted model profile persistence
-- `app/downloaders/`, `app/transcribers/`, `app/llm/`
-  - media acquisition, transcription, summarization
+## 输入入口
 
-Summary modes:
+- 浏览器生成页支持三种模式：视频 URL、本地音频/视频文件、本地文字稿
+- 会议录音悬浮窗会把浏览器录音作为本地音频上传，并将结果保存为 `meeting_recording` 类型笔记
+- `POST /api/generate` 处理 URL 输入
+- `POST /api/generate_from_upload` 处理浏览器上传的本地音频、视频和文字稿
+- 上传文字稿时支持 `TXT`、`MD`、`SRT`、`VTT`、`JSON`，并直接跳过 STT
 
-- `default`
-  - one-shot for shorter transcripts, hierarchical chunk-first summarization for longer transcripts
-- `accurate`
-  - always summarizes in chunks first, then merges the chunk drafts into the final note
-- `oneshot`
-  - always sends the full transcript to the model in one pass
+## 文档说明
 
-Main frontend responsibilities:
+项目包含两层文档：
 
-- `frontend/src/pages/`
-  - route pages
-- `frontend/src/pages/Home.tsx`
-  - dashboard-style workspace home with primary actions, system status, developer entry points, and recent notes
-- `frontend/src/stores/authStore.ts`
-  - cookie-auth session lifecycle
-- `frontend/src/stores/noteLibraryStore.ts`
-  - note library CRUD via backend API
-- `frontend/src/components/Notes/VideoReferencePanel.tsx`
-  - sticky source-media panel for timestamp jumping during note preview, with audio fallback for non-embeddable sources
-- `frontend/src/components/Notes/KeyMomentsRail.tsx`
-  - visual key-moment rail with screenshot cards, timestamps, and jump targets
-- `frontend/src/stores/languageStore.ts`
-  - language preference sync via backend API
-- `frontend/src/stores/modelProfileStore.ts`
-  - model profile management
+- 使用文档站：位于 `docs/`，由 VitePress 构建
+- API 参考：由 FastAPI 自动生成 Swagger / ReDoc
 
-More detail is in [docs/architecture.md](/Users/25772/Desktop/Project/VideoNote/docs/architecture.md).
-Human-readable usage docs now live in the VitePress docs site under [docs/](/Users/25772/Desktop/Project/VideoNote/docs).
-The docs site is bilingual: Simplified Chinese is the default entry, and English lives under `/en/`.
+文档站：
 
-Media preview behavior:
+- 中文默认入口：`/`
+- 英文入口：`/en/`
+- 本地默认地址：`http://localhost:3101`
 
-- Generated notes now append clickable timestamps only to selected key moments instead of every heading.
-- Key moments can carry screenshot thumbnails in both Markdown and the preview-side moment rail.
-- Clicking a heading timestamp, key-moment card, inline timestamp, or screenshot seeks the preview-side media panel when possible.
-- Embeddable sources such as YouTube and Bilibili render an iframe.
-- Audio-only or non-embeddable sources fall back to `/api/notes/{note_id}/media` so timestamp clicks can still seek the extracted audio.
-- The note editor now supports a split workspace with a draggable divider between Markdown source and rendered preview.
+API 参考：
 
-## Repository Layout
+- Swagger：`http://127.0.0.1:8900/docs`
+- ReDoc：`http://127.0.0.1:8900/redoc`
 
-```text
-VINote/
-├─ app/
-│  ├─ downloaders/
-│  ├─ llm/
-│  ├─ models/
-│  ├─ routers/
-│  ├─ services/
-│  ├─ transcribers/
-│  ├─ config.py
-│  ├─ db.py
-│  └─ db_models.py
-├─ frontend/
-│  ├─ src/
-│  └─ docker/
-├─ deploy/pi/
-├─ docs/
-├─ data/
-├─ output/
-├─ Dockerfile
-├─ docker-compose.yml
-├─ main.py
-└─ mcp_server.py
-```
+如果文档站和 Swagger 描述不一致，以 Swagger 为准，然后再修正文档。
 
-## Local Development
+## 本地开发
 
-Requirements:
+依赖要求：
 
 - Python 3.10+
 - Node.js 18+
 - FFmpeg
-- Docker Desktop or Docker Engine if you want the container stack
+- Docker Desktop 或 Docker Engine
 
-### 1. Backend setup
+后端：
 
 ```bash
 pip install -r requirements.txt
@@ -129,28 +72,41 @@ cp .env.example .env
 python main.py
 ```
 
-If you want to use `TRANSCRIBER_TYPE=faster-whisper`, install the optional local-transcriber dependencies as well:
+如果需要本地 `faster-whisper`：
 
 ```bash
 pip install -r requirements.local-transcribers.txt
 ```
 
-Backend dev with reload:
+热重载模式：
 
 ```bash
 uvicorn main:app --host 0.0.0.0 --port 8900 --reload
 ```
 
-### 2. Frontend setup
+前端：
 
 ```bash
 cd frontend
 npm install
 cp .env.example .env.local
-npm run dev -- --host 0.0.0.0 --port 3100
+npm run web:dev
 ```
 
-### 3. Docs setup
+也可以在仓库根目录直接启动开发环境：
+
+```bash
+yarn dev         # 后端 + Tauri 桌面客户端
+yarn api:dev     # 仅后端
+yarn client:dev  # 仅 Tauri 桌面客户端
+yarn web:dev     # 仅浏览器 Web 客户端
+```
+
+如果 `3100` 端口上已经有 VINote 的 Vite 开发服务器，桌面开发模式会直接复用它。
+`yarn dev` 会自动选择已安装后端依赖的 Python；如需手动指定，可设置 `VINOTE_PYTHON=/path/to/python`。
+如果 `.env` 中的本地 Postgres 暂时不可达，`yarn dev` 会仅在当前开发会话中临时改用 `data/vinote.dev.db` SQLite 数据库，不会修改 `.env`。
+
+文档站：
 
 ```bash
 cd docs
@@ -158,178 +114,201 @@ npm install
 npm run docs:dev
 ```
 
-The convenience launcher `.\start-dev.ps1` now starts backend, frontend, and docs together.
+Windows 一键启动：
 
-### 4. Required environment variables
+```powershell
+.\start-dev.ps1
+```
 
-Backend:
+## 桌面 App
 
-- `APP_JWT_SECRET`
-- `DATABASE_URL`
-- `SHARE_BASE_URL` (optional, overrides the LAN/public base URL used in generated share links)
-- `MODEL_PROFILE_ENCRYPTION_KEY`
-- `LLM_API_KEY`
-- `LLM_BASE_URL`
-- `LLM_MODEL`
-- `TRANSCRIBER_TYPE`
-- `SUMMARY_DEFAULT_MAX_CHARS`
-- `SUMMARY_DEFAULT_MAX_SEGMENTS`
-- `SUMMARY_CHUNK_MAX_CHARS`
-- `SUMMARY_CHUNK_MAX_SEGMENTS`
-- `SUMMARY_CHUNK_OVERLAP_SEGMENTS`
+桌面端基于 Tauri 2，复用现有 React/Vite 前端界面。当前桌面包不内置 FastAPI 后端、数据库或 FFmpeg；使用桌面端前需要先按本地开发或 Docker 方式启动后端服务。开发模式通过 Vite 代理访问后端，正式桌面包默认连接 `http://localhost:8900`。
+会议录音入口在桌面端和 Web 端共用同一套前端流程：点击右下角 `会议录音` 按钮后会直接请求麦克风权限并开始录音。
 
-Frontend runtime:
+首次开发桌面端前需要安装 Rust 工具链：
 
-- `VITE_API_BASE_URL`
-- `VITE_DOCS_BASE_URL`
+```bash
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+```
 
-For local Vite development, `VITE_API_BASE_URL` can stay empty if you proxy `/api` to the backend.
-Set `VITE_DOCS_BASE_URL` when the browser app should open a separately hosted docs site instead of falling back to backend Swagger.
-When the frontend runs on `http://localhost:3100` in local dev, the sidebar `Document` link now defaults to `http://localhost:3101/`.
+如果本机没有 Yarn，可以先启用 Corepack：
+
+```bash
+corepack enable
+```
+
+桌面热更新开发模式：
+
+```bash
+cd frontend
+yarn dev
+```
+
+等价 npm 命令：
+
+```bash
+cd frontend
+npm run dev
+```
+
+生成当前系统的桌面应用包：
+
+```bash
+cd frontend
+npm run desktop:build
+```
+
+Tauri 构建产物默认输出到 `frontend/src-tauri/target/release/bundle/`，macOS 默认生成 `.app` 应用包。
 
 ## Docker
 
-The current Docker stack is intentionally simple:
+启动本地容器栈：
+
+```bash
+docker compose up --build
+```
+
+会启动：
 
 - `postgres`
 - `backend`
 - `frontend`
 - `docs`
 
-Start everything:
+默认端口：
 
-```bash
-docker compose up --build
+- 前端：`http://localhost:3100`
+- 后端：`http://localhost:8900`
+- 文档站：`http://localhost:3101`
+
+## 树莓派部署
+
+VINote 现在支持两条树莓派部署路径：
+
+- 开发机手动部署
+- GitHub Actions 驱动的树莓派 self-hosted runner 自动部署
+
+### 手动部署
+
+推荐顺序：
+
+1. 从 `.env.example` 生成根目录 `.env`
+2. 从 `deploy/pi/local.env.example` 生成 `deploy/pi/local.env`
+3. 先运行 bootstrap，准备 Docker、Docker Compose 和远程应用目录
+4. 再运行 deploy
+
+Bootstrap：
+
+```powershell
+.\deploy\pi\bootstrap-pi.ps1
 ```
 
-Default ports:
+```bash
+./deploy/pi/bootstrap-pi.sh
+```
 
-- Frontend: `http://localhost:3100`
-- Backend: `http://localhost:8900`
-- Docs: `http://localhost:3101`
-- Postgres: `postgresql://vinote:<password>@127.0.0.1:54322/vinote`
+Deploy：
 
-Notes:
+```powershell
+.\deploy\pi\deploy-pi-interactive.ps1
+```
 
-- The backend container runs database schema initialization automatically on startup.
-- Frontend runtime config is injected at container start, so you do not need a separate frontend build per environment.
-- The Raspberry Pi deployment target uses this same compose stack. Supabase is no longer part of the runtime architecture.
-- The backend also exposes an HTTP MCP endpoint at `/mcp` for LAN clients that can talk to an MCP server over HTTP JSON-RPC.
-- The Raspberry Pi deploy helpers force `DOCKER_DEFAULT_PLATFORM=linux/arm/v7` on the remote host to avoid incorrect `arm/v5` image selection on 32-bit Raspberry Pi OS userlands.
-
-## Raspberry Pi LAN Deployment
-
-The repository includes LAN deployment helpers under `deploy/pi/`.
-
-Recommended flow:
-
-1. Copy `.env.example` to `.env` in the repo root and fill in real values.
-2. Optional: create `deploy/pi/local.env` from `deploy/pi/local.env.example` with your Pi host, user, and remote directory.
-3. Deploy from your development machine:
-
-PowerShell:
+```bash
+./deploy/pi/deploy-pi-interactive.sh
+```
 
 ```powershell
 .\deploy\pi\deploy-pi.ps1
 ```
 
-Bash:
-
 ```bash
 ./deploy/pi/deploy-pi.sh
 ```
 
-What the deploy script does:
+手动脚本继续保留，作为紧急重部署和调试时的 fallback。
 
-- validates required local tools
-- uploads the root `.env`
-- archives the current working tree
-- uploads the archive to the Raspberry Pi over SSH
-- runs `docker compose up -d --build --remove-orphans` remotely
+### `dev` 自动部署
 
-Pi-specific LAN overrides are documented in [deploy/pi/lan.env.example](/Users/25772/Desktop/Project/VideoNote/deploy/pi/lan.env.example).
+共享测试环境的推荐流程是：
 
-After deployment:
+1. PR 合并到 `dev`
+2. GitHub Actions 收到 `push`
+3. 树莓派 self-hosted runner 在本机 checkout 合并后的 commit
+4. 树莓派直接基于当前 checkout 重建并启动服务
 
-- Web app: `http://<pi-lan-ip>:<FRONTEND_PORT>`
-- MCP endpoint: `http://<pi-lan-ip>:<BACKEND_PORT>/mcp`
+关键配置：
 
-The MCP endpoint is exposed from the FastAPI backend so LAN clients can connect directly without needing a local stdio process.
+- Workflow：`.github/workflows/deploy-pi-dev.yml`
+- 触发条件：`push` 到 `dev`，以及 `workflow_dispatch`
+- Runner 标签：`self-hosted`、`linux`、`arm`、`pi`、`vinote-test`
+- GitHub Environment：`pi-test`
+- Runner 使用的本机部署脚本：`deploy/pi/deploy-from-checkout.sh`
 
-## Auth Model
+### 树莓派一次性准备
 
-VINote no longer depends on Supabase for browser auth.
+在树莓派上完成以下初始化：
 
-- `POST /api/auth/sign-up`
-- `POST /api/auth/sign-in`
-- `POST /api/auth/sign-out`
-- `GET /api/auth/session`
-- `GET /api/auth/me`
+1. 安装 Docker 和 Docker Compose
+2. 在独立目录中安装 GitHub Actions runner，例如 `/home/zouyu/actions-runner`
+3. 注册 runner，并打上 `self-hosted,linux,arm,pi,vinote-test` 标签
+4. 将 runner 安装为系统服务
+5. 将 runner 用户加入 `docker` 组
+6. 保持应用部署目录为 `/home/zouyu/vinote`
 
-The backend sets an HttpOnly cookie after sign-in or sign-up. Browser requests use `credentials: 'include'`.
+不要把应用目录直接拿来当 runner 工作目录。
 
-Protected browser data APIs:
+### GitHub Environment `pi-test`
 
-- `/api/notes`
-- `/api/preferences`
-- `/api/model-profiles`
+在 GitHub 中配置：
 
-## API Notes
+- Secret `PI_TEST_ENV_FILE`
+  - 内容为树莓派测试环境使用的完整根目录 `.env`
+- Variable `PI_REMOTE_DIR`
+  - 默认值：`/home/zouyu/vinote`
+- Variable `FRONTEND_PORT`
+  - 默认值：`3100`
+- Variable `BACKEND_PORT`
+  - 默认值：`8900`
+- Variable `DOCS_PORT`
+  - 默认值：`3101`
 
-Core generation endpoints remain in the FastAPI backend:
+workflow 会先把 `PI_TEST_ENV_FILE` 写入 checkout 目录中的 `.env`，然后 `deploy-from-checkout.sh` 会刷新 `/home/zouyu/vinote`，并把这份 `.env` 同步到部署目录。
 
-- `POST /api/generate`
-- `GET /api/task/{task_id}`
-- `GET /api/task/{task_id}/artifacts/{asset_path}`
-- `POST /mcp`
-- `GET /mcp`
+### 自动部署行为
 
-Generation requests accept an optional `summary_mode` field with `default`, `accurate`, or `oneshot`.
-Generated notes now include per-section video jump links and API-served screenshot assets under the task artifact route above.
+workflow 会：
 
-Saved-note APIs:
+1. 在树莓派 runner 上 checkout 当前触发 commit
+2. 从 `PI_TEST_ENV_FILE` 写入 `.env`
+3. 检查 Docker、Docker Compose、`curl` 以及 docker 组权限
+4. 调用 `deploy/pi/deploy-from-checkout.sh`
+5. 以 `docker compose up -d --build --remove-orphans` 重建并拉起服务
+6. 对 `127.0.0.1` 上的 backend、frontend、docs 做 smoke check
+7. 输出 `docker compose ps`
+8. 失败时输出 backend / frontend / docs 日志
 
-- `GET /api/notes`
-- `GET /api/notes/{id}`
-- `POST /api/notes`
-- `PATCH /api/notes/{id}`
-- `DELETE /api/notes/{id}`
-- `GET /api/notes/{id}/share`
-- `POST /api/notes/{id}/share`
-- `DELETE /api/notes/{id}/share`
+部署时会保留树莓派上的 `data/` 与 `output/` 目录。
 
-Public share endpoints:
+更多树莓派部署说明见 [deploy/pi/README.md](./deploy/pi/README.md)。
 
-- `GET /share/{token}`
-- `GET /api/public/notes/{token}`
+## 验证建议
 
-Preference API:
+常用检查项：
 
-- `GET /api/preferences`
-- `PATCH /api/preferences`
-
-## Verification
-
-Useful smoke checks:
-
-- Docs site: `cd docs && npm run docs:build`
-- Backend docs: `http://127.0.0.1:8900/docs`
-- Signed-in frontend users can open the left sidebar footer `Document` link. It prefers `VITE_DOCS_BASE_URL` and falls back to backend Swagger when no standalone docs URL is configured.
-- In local dev on port `3100`, the `Document` link prefers the VitePress docs site on `3101`.
-- Backend health: `GET /healthz`
-- Frontend production build:
+- 文档站构建：`cd docs && npm run docs:build`
+- 后端健康检查：`GET /healthz`
+- Swagger：`http://127.0.0.1:8900/docs`
+- 浏览器上传冒烟：分别测试 URL、本地音视频、本地文字稿三种生成入口
+- 前端测试：`cd frontend && npm run test`
+- 前端构建：
 
 ```bash
 cd frontend
 npm run build
 ```
 
-- Python import / syntax smoke:
+## 说明
 
-```bash
-python -m compileall app main.py
-```
-
-## Notes for Historical Docs
-
-Some older planning documents under `docs/plans/` still describe the earlier Supabase-based design. Treat them as historical planning artifacts, not the current runtime architecture.
+- 浏览器认证使用后端签发的 HttpOnly Cookie
+- 侧边栏 `Document` 可通过 `VITE_DOCS_BASE_URL` 指向独立文档站
+- 如果文档和代码不一致，以代码为准，并在同一改动中修正文档

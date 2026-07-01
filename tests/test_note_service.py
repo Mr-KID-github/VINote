@@ -28,13 +28,17 @@ class FakeDownloader:
 
 class FakeTranscriptionService:
     def __init__(self):
-        self.calls: list[str] = []
+        self.calls: list[dict] = []
 
     def get_audio_duration(self, file_path: str) -> float:
         return 42.0
 
-    def transcribe(self, *, audio_path, load_cached, save_transcript, update_status=None):
-        self.calls.append(audio_path)
+    def transcribe(self, *, audio_path, load_cached, save_transcript, update_status=None, user_id=None, stt_profile_id=None):
+        self.calls.append({
+            "audio_path": audio_path,
+            "user_id": user_id,
+            "stt_profile_id": stt_profile_id,
+        })
         cached = load_cached()
         if cached:
             return cached
@@ -144,10 +148,14 @@ class NoteServiceTest(unittest.TestCase):
                 style="detailed",
                 summary_mode="accurate",
                 output_language="en",
+                user_id="user-1",
+                stt_profile_id="stt-profile-1",
             )
 
             self.assertEqual(len(downloader.download_calls), 1)
             self.assertEqual(len(transcription_service.calls), 1)
+            self.assertEqual(transcription_service.calls[0]["stt_profile_id"], "stt-profile-1")
+            self.assertEqual(transcription_service.calls[0]["user_id"], "user-1")
             self.assertEqual(len(llm_service.calls), 1)
             self.assertEqual(llm_service.summarizer.calls[0]["output_language"], "en")
             self.assertEqual(llm_service.summarizer.calls[0]["summary_mode"], "accurate")

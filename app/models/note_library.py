@@ -1,6 +1,15 @@
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, Field
+
+NoteScope = Literal["personal", "team"]
+
+
+class WorkspaceSummary(BaseModel):
+    scope: NoteScope
+    team_id: str | None = None
+    team_name: str | None = None
 
 
 class NoteRecordResponse(BaseModel):
@@ -11,6 +20,9 @@ class NoteRecordResponse(BaseModel):
     source_type: str | None = None
     task_id: str | None = None
     status: str
+    scope: NoteScope = "personal"
+    team_id: str | None = None
+    team_name: str | None = None
     created_at: datetime
     updated_at: datetime
 
@@ -22,6 +34,8 @@ class NoteCreateRequest(BaseModel):
     source_type: str | None = None
     task_id: str | None = None
     status: str = "done"
+    scope: NoteScope = "personal"
+    team_id: str | None = None
 
 
 class NoteUpdateRequest(BaseModel):

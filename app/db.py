@@ -32,6 +32,7 @@ def init_db():
 
     Base.metadata.create_all(bind=engine)
     _ensure_note_share_columns()
+    _ensure_note_workspace_columns()
 
 
 def _ensure_note_share_columns():
@@ -54,6 +55,30 @@ def _ensure_note_share_columns():
             connection.exec_driver_sql(statement)
         connection.exec_driver_sql(
             "CREATE UNIQUE INDEX IF NOT EXISTS ix_notes_share_token ON notes (share_token)"
+        )
+
+
+def _ensure_note_workspace_columns():
+    inspector = inspect(engine)
+    if "notes" not in inspector.get_table_names():
+        return
+
+    columns = {column["name"] for column in inspector.get_columns("notes")}
+    statements: list[str] = []
+
+    if "scope" not in columns:
+        statements.append("ALTER TABLE notes ADD COLUMN scope VARCHAR(16) NOT NULL DEFAULT 'personal'")
+    if "team_id" not in columns:
+        statements.append("ALTER TABLE notes ADD COLUMN team_id VARCHAR(36)")
+
+    with engine.begin() as connection:
+        for statement in statements:
+            connection.exec_driver_sql(statement)
+        connection.exec_driver_sql(
+            "CREATE INDEX IF NOT EXISTS ix_notes_team_id ON notes (team_id)"
+        )
+        connection.exec_driver_sql(
+            "CREATE INDEX IF NOT EXISTS ix_notes_scope_created_at ON notes (scope, created_at)"
         )
 
 

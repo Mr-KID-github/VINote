@@ -1,15 +1,25 @@
 {
   "name": "vinote-frontend",
   "private": true,
-  "version": "0.0.1",
+  "version": "0.2.0",
+  "description": "VINote desktop and web frontend",
   "type": "module",
+  "author": "VINote",
+  "packageManager": "yarn@1.22.22",
   "scripts": {
-    "dev": "vite",
+    "dev": "tauri dev",
+    "web:dev": "vite --host 127.0.0.1 --port 3100",
     "build": "tsc && vite build",
+    "web:build": "tsc && vite build",
+    "web:build:tauri": "cross-env VINOTE_DESKTOP_BUILD=true VITE_API_BASE_URL=http://localhost:8900 VITE_DOCS_BASE_URL=http://localhost:8900/docs npm run web:build",
     "preview": "vite preview",
+    "tauri": "tauri",
+    "desktop:dev": "tauri dev",
+    "desktop:build": "tauri build",
     "test": "vitest run"
   },
   "dependencies": {
+    "@tauri-apps/api": "^2.11.0",
     "clsx": "^2.1.0",
     "lucide-react": "^0.330.0",
     "react": "^18.2.0",
@@ -17,9 +27,11 @@
     "react-markdown": "^9.0.1",
     "react-router-dom": "^6.22.0",
     "react-syntax-highlighter": "^15.5.0",
+    "remark-gfm": "^4.0.1",
     "zustand": "^4.5.0"
   },
   "devDependencies": {
+    "@tauri-apps/cli": "^2.11.2",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
     "@testing-library/user-event": "^14.6.1",
@@ -28,6 +40,7 @@
     "@types/react-syntax-highlighter": "^15.5.11",
     "@vitejs/plugin-react": "^4.2.1",
     "autoprefixer": "^10.4.17",
+    "cross-env": "^7.0.3",
     "jsdom": "^27.0.1",
     "playwright": "^1.58.2",
     "postcss": "^8.4.35",

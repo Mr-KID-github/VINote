@@ -33,6 +33,37 @@ export function VideoReferencePanel({
   const timestampLabel = formatTimestampLabel(currentTimestamp)
 
   useEffect(() => {
+    if (!localMediaUrl) {
+      setPlayerKind('video')
+      return
+    }
+
+    let cancelled = false
+    setPlayerKind('video')
+
+    void fetch(localMediaUrl, { method: 'HEAD', credentials: 'include' })
+      .then((response) => {
+        if (!response.ok || cancelled) {
+          return
+        }
+
+        const contentType = response.headers.get('content-type') || ''
+        if (contentType.startsWith('audio/')) {
+          setPlayerKind('audio')
+        } else if (contentType.startsWith('video/')) {
+          setPlayerKind('video')
+        }
+      })
+      .catch(() => {
+        // Keep the video element as the optimistic default.
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [localMediaUrl])
+
+  useEffect(() => {
     const player = playerKind === 'video' ? videoRef.current : audioRef.current
     if (!player || !localMediaUrl || jumpRequestId === 0) {
       return

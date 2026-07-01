@@ -6,7 +6,10 @@ import { useAudioRecorder } from '../../hooks/useAudioRecorder'
 import { MeetingGenerationError, completeMeetingRecordingGeneration, submitMeetingRecording } from '../../lib/meetingGeneration'
 import { useI18n } from '../../lib/i18n'
 import { useMeetingRecorderStore, type MeetingRecorderPhase, type MeetingRecorderStage } from '../../stores/meetingRecorderStore'
+import { useModelProfileStore } from '../../stores/modelProfileStore'
 import { useNoteLibraryStore } from '../../stores/noteLibraryStore'
+import { useSTTProfileStore } from '../../stores/sttProfileStore'
+import { useTeamStore } from '../../stores/teamStore'
 
 const PANEL_WIDTH = 520
 const PANEL_HEIGHT = 150
@@ -65,6 +68,15 @@ export function MeetingRecorderDock() {
   const { copy, language } = useI18n()
   const recorderCopy = copy.meetingRecorder
   const { saveNote } = useNoteLibraryStore()
+  const { currentWorkspace } = useTeamStore()
+  const {
+    selectedProfileId: selectedModelProfileId,
+    loadProfiles: loadModelProfiles,
+  } = useModelProfileStore()
+  const {
+    selectedProfileId: selectedSTTProfileId,
+    loadProfiles: loadSTTProfiles,
+  } = useSTTProfileStore()
   const {
     isPanelOpen,
     isMinimized,
@@ -95,6 +107,11 @@ export function MeetingRecorderDock() {
   const dragOffsetRef = useRef<{ x: number; y: number } | null>(null)
   const startedAtRef = useRef<Date | null>(null)
   const finishInFlightRef = useRef(false)
+
+  useEffect(() => {
+    void loadModelProfiles()
+    void loadSTTProfiles()
+  }, [loadModelProfiles, loadSTTProfiles])
 
   useEffect(() => {
     setElapsedSeconds(recorder.elapsedSeconds)
@@ -173,10 +190,13 @@ export function MeetingRecorderDock() {
         startedAt: startedAtRef.current || new Date(),
         outputLanguage: language,
         summaryMode: 'default',
+        modelProfileId: selectedModelProfileId || undefined,
+        sttProfileId: selectedSTTProfileId || undefined,
       }, { onStage: setPhase })
       setTaskId(response.task_id)
       const note = await completeMeetingRecordingGeneration({
         taskId: response.task_id,
+        workspace: currentWorkspace,
         saveNote,
         onStage: setPhase,
       })
@@ -196,7 +216,14 @@ export function MeetingRecorderDock() {
     try {
       if (state.failedStage === 'saving' && state.generatedNote) {
         setPhase('saving')
-        const note = await saveNote(state.generatedNote.title, state.generatedNote.markdown, undefined, state.generatedNote.taskId, 'meeting_recording')
+        const note = await saveNote(
+          state.generatedNote.title,
+          state.generatedNote.markdown,
+          undefined,
+          state.generatedNote.taskId,
+          currentWorkspace,
+          'meeting_recording',
+        )
         if (!note) throw new MeetingGenerationError('saving', recorderCopy.saveFailed)
         complete(note.id)
         return
@@ -204,6 +231,7 @@ export function MeetingRecorderDock() {
       if ((state.failedStage === 'transcribing' || state.failedStage === 'summarizing') && state.taskId) {
         const note = await completeMeetingRecordingGeneration({
           taskId: state.taskId,
+          workspace: currentWorkspace,
           saveNote,
           onStage: setPhase,
         })
@@ -219,9 +247,16 @@ export function MeetingRecorderDock() {
         startedAt: startedAtRef.current || new Date(),
         outputLanguage: language,
         summaryMode: 'default',
+        modelProfileId: selectedModelProfileId || undefined,
+        sttProfileId: selectedSTTProfileId || undefined,
       }, { onStage: setPhase })
       setTaskId(response.task_id)
-      const note = await completeMeetingRecordingGeneration({ taskId: response.task_id, saveNote, onStage: setPhase })
+      const note = await completeMeetingRecordingGeneration({
+        taskId: response.task_id,
+        workspace: currentWorkspace,
+        saveNote,
+        onStage: setPhase,
+      })
       complete(note.id)
     } catch (retryError) {
       failStage(stageFromError(retryError), formatRecorderFailure(retryError, recorderCopy))

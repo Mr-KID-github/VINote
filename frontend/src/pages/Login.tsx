@@ -1,8 +1,11 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Eye, EyeOff, Lock, Mail } from 'lucide-react'
+import { AppFooter } from '../components/Layout/AppFooter'
 import { useI18n } from '../lib/i18n'
 import { useAuthStore } from '../stores/authStore'
+
+const brandMarkUrl = `${import.meta.env.BASE_URL}vinote-mark.svg`
 
 export function Login() {
   const [isLogin, setIsLogin] = useState(true)
@@ -55,15 +58,17 @@ export function Login() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-[#191919] p-4">
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-[#191919] p-4 pb-24">
+      <AppFooter />
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
+          <img src={brandMarkUrl} alt="" className="mx-auto mb-4 h-16 w-16" />
           <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">VINote</h1>
           <p className="text-gray-600 dark:text-gray-400">{copy.login.subtitle}</p>
         </div>
 
-        <div className="bg-white dark:bg-[#202020] rounded-2xl shadow-lg p-8">
-          <h2 className="text-xl font-semibold mb-6">{isLogin ? copy.login.signIn : copy.login.signUp}</h2>
+        <div className="rounded-2xl border border-gray-200 bg-white p-8 text-gray-900 shadow-lg dark:border-[#2f2f2f] dark:bg-[#202020] dark:text-gray-100 dark:shadow-black/20">
+          <h2 className="mb-6 text-xl font-semibold text-gray-900 dark:text-gray-100">{isLogin ? copy.login.signIn : copy.login.signUp}</h2>
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
@@ -77,7 +82,7 @@ export function Login() {
                   value={email}
                   onChange={(event) => setEmail(event.target.value)}
                   autoComplete="email"
-                  className="w-full pl-10 pr-4 py-2.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#191919] focus:ring-2 focus:ring-primary-light dark:focus:ring-primary-dark focus:border-transparent outline-none transition-all"
+                  className="w-full rounded-lg border border-gray-200 bg-white py-2.5 pl-10 pr-4 text-gray-900 placeholder:text-gray-400 outline-none transition-all focus:border-transparent focus:ring-2 focus:ring-primary-light dark:border-gray-700 dark:bg-[#191919] dark:text-gray-100 dark:placeholder:text-gray-500 dark:focus:ring-primary-dark"
                   placeholder={copy.login.emailPlaceholder}
                   required
                 />
@@ -95,7 +100,7 @@ export function Login() {
                   value={password}
                   onChange={(event) => setPassword(event.target.value)}
                   autoComplete={isLogin ? 'current-password' : 'new-password'}
-                  className="w-full pl-10 pr-12 py-2.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#191919] focus:ring-2 focus:ring-primary-light dark:focus:ring-primary-dark focus:border-transparent outline-none transition-all"
+                  className="w-full rounded-lg border border-gray-200 bg-white py-2.5 pl-10 pr-12 text-gray-900 placeholder:text-gray-400 outline-none transition-all focus:border-transparent focus:ring-2 focus:ring-primary-light dark:border-gray-700 dark:bg-[#191919] dark:text-gray-100 dark:placeholder:text-gray-500 dark:focus:ring-primary-dark"
                   placeholder={copy.login.passwordPlaceholder}
                   required
                   minLength={6}
@@ -110,7 +115,7 @@ export function Login() {
               </div>
             </div>
 
-            {error ? <p className="text-red-500 text-sm">{error}</p> : null}
+            {error ? <p className="text-sm text-red-500 dark:text-red-300">{error}</p> : null}
 
             <button
               type="submit"

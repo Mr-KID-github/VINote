@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { apiFetch, apiJson } from '../lib/api'
 import { useModelProfileStore } from './modelProfileStore'
 import { useNoteLibraryStore } from './noteLibraryStore'
+import { useTeamStore } from './teamStore'
 
 export interface AuthUser {
   id: string
@@ -26,6 +27,7 @@ interface AuthState {
 const clearUserState = () => {
   useModelProfileStore.getState().reset()
   useNoteLibraryStore.getState().reset()
+  useTeamStore.getState().reset()
 }
 
 export const useAuthStore = create<AuthState>((set) => ({

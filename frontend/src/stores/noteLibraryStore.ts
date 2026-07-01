@@ -1,5 +1,7 @@
 import { create } from 'zustand'
 import { apiJson } from '../lib/api'
+import { resolveBackendOrigin } from '../lib/runtimeConfig'
+import type { WorkspaceSelection } from './teamStore'
 
 type NoteRow = {
   id: string
@@ -9,6 +11,9 @@ type NoteRow = {
   source_type: string | null
   task_id: string | null
   status: string
+  scope: 'personal' | 'team'
+  team_id: string | null
+  team_name: string | null
   created_at: string
   updated_at: string
 }
@@ -21,6 +26,9 @@ export interface NoteRecord {
   sourceType?: string
   taskId?: string
   status: string
+  scope: 'personal' | 'team'
+  teamId?: string
+  teamName?: string
   createdAt: string
   updatedAt: string
 }
@@ -38,9 +46,16 @@ interface NoteLibraryState {
   notes: NoteRecord[]
   loading: boolean
   error: string
-  loadNotes: () => Promise<void>
+  loadNotes: (workspace?: WorkspaceSelection) => Promise<void>
   loadNoteById: (id: string) => Promise<NoteRecord | null>
-  saveNote: (title: string, content: string, videoUrl?: string, taskId?: string, sourceType?: string) => Promise<NoteRecord | null>
+  saveNote: (
+    title: string,
+    content: string,
+    videoUrl?: string,
+    taskId?: string,
+    workspace?: WorkspaceSelection,
+    sourceType?: string,
+  ) => Promise<NoteRecord | null>
   updateNote: (id: string, title: string, content: string) => Promise<NoteRecord | null>
   deleteNote: (id: string) => Promise<void>
   createShareLink: (id: string) => Promise<NoteShareRecord | null>
@@ -63,6 +78,9 @@ const mapRow = (row: NoteRow): NoteRecord => ({
   sourceType: row.source_type ?? undefined,
   taskId: row.task_id ?? undefined,
   status: row.status,
+  scope: row.scope,
+  teamId: row.team_id ?? undefined,
+  teamName: row.team_name ?? undefined,
   createdAt: row.created_at,
   updatedAt: row.updated_at,
 })
@@ -79,17 +97,30 @@ const mapShareRow = (row: {
   title: row.title,
   shareEnabled: row.share_enabled,
   shareToken: row.share_token ?? undefined,
-  shareUrl: row.share_url ?? undefined,
+  shareUrl: row.share_url ?? resolveShareUrl(row.share_token ?? undefined, row.share_enabled),
   shareCreatedAt: row.share_created_at ?? undefined,
 })
 
+function resolveShareUrl(shareToken: string | undefined, shareEnabled: boolean) {
+  if (!shareEnabled || !shareToken || typeof window === 'undefined') {
+    return undefined
+  }
+
+  return `${resolveBackendOrigin().replace(/\/$/, '')}/share/${shareToken}`
+}
+
 export const useNoteLibraryStore = create<NoteLibraryState>((set, get) => ({
   ...initialState,
-  loadNotes: async () => {
+  loadNotes: async (workspace) => {
     set({ loading: true, error: '' })
 
     try {
-      const data = await apiJson<NoteRow[]>('/api/notes')
+      const currentWorkspace = workspace ?? { scope: 'personal' as const }
+      const params =
+        currentWorkspace.scope === 'team'
+          ? `?scope=team&team_id=${encodeURIComponent(currentWorkspace.teamId)}`
+          : '?scope=personal'
+      const data = await apiJson<NoteRow[]>(`/api/notes${params}`)
       set({ notes: data.map(mapRow), loading: false })
     } catch (error) {
       console.error('Failed to load notes:', error)
@@ -120,9 +151,10 @@ export const useNoteLibraryStore = create<NoteLibraryState>((set, get) => ({
       return null
     }
   },
-  saveNote: async (title, content, videoUrl, taskId, sourceType) => {
+  saveNote: async (title, content, videoUrl, taskId, workspace, sourceType) => {
     try {
       const normalizedTitle = title.trim() || 'Untitled note'
+      const currentWorkspace = workspace ?? { scope: 'personal' as const }
       const data = await apiJson<NoteRow>('/api/notes', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -133,6 +165,8 @@ export const useNoteLibraryStore = create<NoteLibraryState>((set, get) => ({
           task_id: taskId || null,
           source_type: sourceType || (videoUrl ? 'video' : 'file'),
           status: 'done',
+          scope: currentWorkspace.scope,
+          team_id: currentWorkspace.scope === 'team' ? currentWorkspace.teamId : null,
         }),
       })
       const note = mapRow(data)

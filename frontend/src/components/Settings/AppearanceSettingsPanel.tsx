@@ -22,7 +22,7 @@ export function AppearanceSettingsPanel({
   return (
     <div className="space-y-6">
       <div className="space-y-4">
-        <h3 className="font-medium text-lg">{copy.theme.title}</h3>
+        <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100">{copy.theme.title}</h3>
         <div className="space-y-2">
           {(['light', 'dark', 'system'] as const).map((value) => (
             <label
@@ -41,7 +41,7 @@ export function AppearanceSettingsPanel({
                 checked={theme === value}
                 onChange={() => onThemeChange(value)}
               />
-              <span>
+              <span className="text-gray-900 dark:text-gray-100">
                 {value === 'light' ? copy.theme.light : value === 'dark' ? copy.theme.dark : copy.theme.system}
               </span>
             </label>
@@ -50,7 +50,7 @@ export function AppearanceSettingsPanel({
       </div>
 
       <div className="space-y-2">
-        <h3 className="font-medium text-lg">{copy.language.title}</h3>
+        <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100">{copy.language.title}</h3>
         {([
           { value: 'zh-CN', label: copy.language.chinese },
           { value: 'en', label: copy.language.english },
@@ -71,7 +71,7 @@ export function AppearanceSettingsPanel({
               checked={language === option.value}
               onChange={() => void onLanguageChange(option.value)}
             />
-            <span>{option.label}</span>
+            <span className="text-gray-900 dark:text-gray-100">{option.label}</span>
           </label>
         ))}
       </div>

@@ -11,7 +11,9 @@ from pathlib import Path
 from typing import Callable
 
 from app.config import settings
+from app.models.stt_profile import LOCAL_STT_PROVIDERS, ResolvedSTTConfig
 from app.models.transcript import TranscriptResult, TranscriptSegment
+from app.services.stt_profile_service import STTProfileService
 from app.transcribers.base import Transcriber
 
 logger = logging.getLogger(__name__)
@@ -30,20 +32,28 @@ class ChunkSpec:
     trim_end: float
 
 
-def create_transcriber() -> Transcriber:
-    t_type = settings.transcriber_type.lower()
+def create_transcriber(config: ResolvedSTTConfig | None = None) -> Transcriber:
+    resolved = config or STTProfileService().resolve_config(user_id=None, stt_profile_id=None)
+    t_type = resolved.provider.lower()
 
     if t_type == "groq":
         from app.transcribers.groq_transcriber import GroqWhisperTranscriber
 
-        if not settings.groq_api_key:
+        if not resolved.api_key:
             raise ValueError("GROQ_API_KEY is not configured")
-        return GroqWhisperTranscriber(api_key=settings.groq_api_key)
+        return GroqWhisperTranscriber(
+            api_key=resolved.api_key,
+            model=resolved.model_name or "whisper-large-v3-turbo",
+            language=resolved.language,
+        )
 
     if t_type == "whisper":
         from app.transcribers.whisper_transcriber import WhisperTranscriber
 
-        return WhisperTranscriber(model_size=settings.whisper_model_size, device=settings.whisper_device)
+        return WhisperTranscriber(
+            model_size=resolved.model_name or settings.whisper_model_size,
+            device=resolved.device or settings.whisper_device,
+        )
 
     if t_type == "faster-whisper":
         try:
@@ -54,32 +64,41 @@ def create_transcriber() -> Transcriber:
             ) from exc
 
         return FasterWhisperTranscriber(
-            model_size=settings.whisper_model_size,
-            device=settings.whisper_device,
-            compute_type=settings.faster_whisper_compute_type,
+            model_size=resolved.model_name or settings.whisper_model_size,
+            device=resolved.device or settings.whisper_device,
+            compute_type=resolved.compute_type or settings.faster_whisper_compute_type,
+            language=resolved.language,
         )
 
     if t_type == "sensevoice":
         from app.transcribers.sensevoice_transcriber import SenseVoiceTranscriber
 
-        return SenseVoiceTranscriber(base_url=settings.sensevoice_base_url, language=settings.sensevoice_language)
+        return SenseVoiceTranscriber(
+            base_url=resolved.base_url or settings.sensevoice_base_url,
+            language=resolved.language or settings.sensevoice_language,
+        )
 
     if t_type == "sensevoice-local":
         from app.transcribers.sensevoice_local_transcriber import SenseVoiceLocalTranscriber
 
         return SenseVoiceLocalTranscriber(
-            model_size=settings.sensevoice_model_size,
-            device="cuda" if settings.sensevoice_use_gpu else "cpu",
-            language=settings.sensevoice_language,
-            use_gpu=settings.sensevoice_use_gpu,
+            model_size=resolved.model_name or settings.sensevoice_model_size,
+            device=resolved.device or ("cuda" if settings.sensevoice_use_gpu else "cpu"),
+            language=resolved.language or settings.sensevoice_language,
+            use_gpu=resolved.use_gpu if resolved.use_gpu is not None else settings.sensevoice_use_gpu,
         )
 
     raise ValueError(f"Unsupported transcriber type: {t_type}")
 
 
 class TranscriptionService:
-    def __init__(self, transcriber: Transcriber | None = None):
-        self.transcriber = transcriber or create_transcriber()
+    def __init__(
+        self,
+        transcriber: Transcriber | None = None,
+        stt_profile_service: STTProfileService | None = None,
+    ):
+        self.transcriber = transcriber
+        self.stt_profile_service = stt_profile_service or STTProfileService()
 
     @staticmethod
     def get_audio_duration(file_path: str) -> float:
@@ -100,9 +119,10 @@ class TranscriptionService:
             logger.warning("[FFprobe] failed to read duration: %s", exc)
             return 0.0
 
-    @staticmethod
-    def _is_local_transcriber() -> bool:
-        return settings.transcriber_type.lower() in {"whisper", "faster-whisper", "sensevoice-local"}
+    def _is_local_transcriber(self, config: ResolvedSTTConfig | None) -> bool:
+        if config:
+            return config.provider in LOCAL_STT_PROVIDERS
+        return settings.transcriber_type.lower() in LOCAL_STT_PROVIDERS
 
     @staticmethod
     def _format_seconds(value: float) -> str:
@@ -281,6 +301,7 @@ class TranscriptionService:
         *,
         audio_path: str,
         duration: float,
+        transcriber: Transcriber,
         update_status: StatusCallback | None = None,
     ) -> TranscriptResult:
         with tempfile.TemporaryDirectory(prefix="transcribe_chunks_", dir=settings.data_dir) as temp_dir:
@@ -290,7 +311,7 @@ class TranscriptionService:
                 temp_dir=Path(temp_dir),
             )
             if not chunk_specs:
-                return self.transcriber.transcribe(file_path=audio_path)
+                return transcriber.transcribe(file_path=audio_path)
 
             chunk_results: list[tuple[ChunkSpec, TranscriptResult]] = []
             for chunk in chunk_specs:
@@ -313,7 +334,7 @@ class TranscriptionService:
                             f"({self._format_seconds(chunk.trim_start)} - {self._format_seconds(chunk.trim_end)})..."
                         ),
                     )
-                chunk_results.append((chunk, self.transcriber.transcribe(file_path=str(chunk.file_path))))
+                chunk_results.append((chunk, transcriber.transcribe(file_path=str(chunk.file_path))))
 
             return self._merge_chunk_results(chunk_results=chunk_results)
 
@@ -324,19 +345,28 @@ class TranscriptionService:
         load_cached: Callable[[], TranscriptResult | None],
         save_transcript: Callable[[TranscriptResult], None],
         update_status: StatusCallback | None = None,
+        user_id: str | None = None,
+        stt_profile_id: str | None = None,
     ) -> TranscriptResult:
         cached = load_cached()
         if cached:
             logger.info("[Transcribe] cache hit for audio=%s", audio_path)
             return cached
 
-        if self._is_local_transcriber() and update_status:
+        resolved_config = None if self.transcriber else self.stt_profile_service.resolve_config(
+            user_id=user_id,
+            stt_profile_id=stt_profile_id,
+        )
+        transcriber = self.transcriber or create_transcriber(resolved_config)
+
+        if self._is_local_transcriber(resolved_config) and update_status:
             update_status("transcribing", "Loading local speech model...")
 
         duration = self.get_audio_duration(audio_path)
         transcript = self._transcribe_in_chunks(
             audio_path=audio_path,
             duration=duration,
+            transcriber=transcriber,
             update_status=update_status,
         )
         if update_status:

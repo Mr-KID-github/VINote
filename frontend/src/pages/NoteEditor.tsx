@@ -159,6 +159,8 @@ export function NoteEditor() {
   const [content, setContent] = useState('')
   const [videoUrl, setVideoUrl] = useState('')
   const [taskId, setTaskId] = useState('')
+  const [noteScope, setNoteScope] = useState<'personal' | 'team'>('personal')
+  const [noteWorkspaceName, setNoteWorkspaceName] = useState('')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [shareLoading, setShareLoading] = useState(false)
@@ -174,16 +176,25 @@ export function NoteEditor() {
   const activeMoment = findActiveKeyMoment(keyMoments, currentTimestamp)
   const localMediaUrl = id && taskId ? `/api/notes/${id}/media` : undefined
   const splitLabel = locale.startsWith('zh') ? '对照' : 'Split'
+  const workspaceBadge = noteScope === 'team'
+    ? noteWorkspaceName || (locale.startsWith('zh') ? '团队笔记' : 'Team note')
+    : (locale.startsWith('zh') ? '个人笔记' : 'Personal note')
+  const shareUrl = shareState?.shareEnabled ? shareState.shareUrl : undefined
   const shareCopy = {
-    title: locale.startsWith('zh') ? 'LAN share' : 'LAN sharing',
-    description: 'Generate a backend-hosted public link that other devices on your LAN can open directly.',
-    generate: 'Generate and copy',
-    copy: 'Copy link',
+    title: locale.startsWith('zh') ? '分享链接' : 'Share link',
+    description: locale.startsWith('zh')
+      ? '生成一个后端托管的公开链接，局域网内的其他设备可以直接打开。'
+      : 'Create a backend-hosted public link that other devices on your LAN can open directly.',
+    create: locale.startsWith('zh') ? '创建链接' : 'Create link',
+    copy: locale.startsWith('zh') ? '复制链接' : 'Copy link',
     disable: 'Disable sharing',
     disabled: 'Sharing is currently disabled.',
-    copied: 'Share link copied to clipboard',
-    copyFailed: 'Copy failed. Please copy the link manually.',
-    createFailed: 'Failed to create share link',
+    created: locale.startsWith('zh') ? '分享链接已创建' : 'Share link created',
+    copied: locale.startsWith('zh') ? '分享链接已复制到剪贴板' : 'Share link copied to clipboard',
+    copyBlocked: locale.startsWith('zh')
+      ? '浏览器阻止了剪贴板访问，请手动复制下方链接。'
+      : 'Clipboard access is blocked in this browser. Copy the link below manually.',
+    createFailed: locale.startsWith('zh') ? '创建分享链接失败' : 'Failed to create share link',
     disableFailed: 'Failed to disable sharing',
     disabledSuccess: 'Sharing disabled. The old link is no longer accessible.',
   }
@@ -213,6 +224,8 @@ export function NoteEditor() {
       setContent(note.content)
       setVideoUrl(note.videoUrl || '')
       setTaskId(note.taskId || '')
+      setNoteScope(note.scope)
+      setNoteWorkspaceName(note.teamName || '')
       setError('')
       setLoading(false)
 
@@ -254,20 +267,25 @@ export function NoteEditor() {
     setSaving(false)
   }
 
-  const copyShareUrl = async (url: string) => {
+  const copyShareUrl = async (url: string, options?: { silentFailure?: boolean }) => {
     try {
       if (navigator.clipboard?.writeText) {
         await navigator.clipboard.writeText(url)
         setShareMessage(shareCopy.copied)
         setShareError('')
-        return
+        return true
       }
     } catch (copyError) {
       console.error('Failed to copy share url:', copyError)
     }
 
-    setShareMessage('')
-    setShareError(shareCopy.copyFailed)
+    if (options?.silentFailure) {
+      setShareMessage(shareCopy.copyBlocked)
+    } else {
+      setShareMessage(shareCopy.copyBlocked)
+    }
+    setShareError('')
+    return false
   }
 
   const handleShare = async () => {
@@ -283,13 +301,16 @@ export function NoteEditor() {
     const nextShareState = await createShareLink(id)
     setShareLoading(false)
 
-    if (!nextShareState?.shareUrl) {
+    const nextShareUrl = nextShareState?.shareUrl
+
+    if (!nextShareState?.shareEnabled || !nextShareUrl) {
       setShareError(shareCopy.createFailed)
       return
     }
 
     setShareState(nextShareState)
-    await copyShareUrl(nextShareState.shareUrl)
+    setShareMessage(shareCopy.created)
+    await copyShareUrl(nextShareUrl, { silentFailure: true })
   }
 
   const handleDisableShare = async () => {
@@ -311,6 +332,17 @@ export function NoteEditor() {
 
     setShareState(nextShareState)
     setShareMessage(shareCopy.disabledSuccess)
+  }
+
+  const handleShareButtonClick = async () => {
+    if (shareUrl) {
+      setSharePanelOpen(true)
+      setShareMessage('')
+      setShareError('')
+      return
+    }
+
+    await handleShare()
   }
 
   const handleExport = () => {
@@ -412,6 +444,9 @@ export function NoteEditor() {
               className="w-full min-w-[220px] border-none bg-transparent text-lg font-semibold outline-none focus:ring-0"
             />
             <p className="text-xs text-gray-500 dark:text-gray-400">
+              <span className="mr-2 inline-flex rounded-full bg-white/70 px-2 py-0.5 text-[11px] font-medium text-gray-600 dark:bg-[#1a1a1a] dark:text-gray-300">
+                {workspaceBadge}
+              </span>
               {keyMoments.length} key moments with direct timestamp jumps
             </p>
           </div>
@@ -469,7 +504,7 @@ export function NoteEditor() {
             <Download className="h-5 w-5" />
           </button>
           <button
-            onClick={() => void handleShare()}
+            onClick={() => void handleShareButtonClick()}
             className="rounded-xl bg-white/80 p-2 shadow-sm hover:bg-white dark:bg-[#1a1a1a] dark:hover:bg-[#232323]"
             title={copy.noteEditor.share}
           >
@@ -493,10 +528,10 @@ export function NoteEditor() {
             <div className="space-y-1">
               <div className="font-medium">{shareCopy.title}</div>
               <p className="text-xs text-sky-800/80 dark:text-sky-200/80">{shareCopy.description}</p>
-              {shareState?.shareEnabled && shareState.shareUrl ? (
+              {shareUrl ? (
                 <input
                   readOnly
-                  value={shareState.shareUrl}
+                  value={shareUrl}
                   className="w-full rounded-lg border border-sky-200 bg-white px-3 py-2 text-xs text-slate-700 outline-none dark:border-sky-900/50 dark:bg-slate-900 dark:text-slate-100 md:min-w-[420px]"
                 />
               ) : (
@@ -509,34 +544,37 @@ export function NoteEditor() {
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
-              <button
-                type="button"
-                onClick={() => void handleShare()}
-                disabled={shareLoading}
-                className="rounded-lg bg-sky-600 px-3 py-2 text-xs font-medium text-white transition hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {shareLoading ? copy.common.loading : shareCopy.generate}
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  if (shareState?.shareUrl) {
-                    void copyShareUrl(shareState.shareUrl)
-                  }
-                }}
-                disabled={!shareState?.shareUrl || shareLoading}
-                className="rounded-lg border border-sky-200 px-3 py-2 text-xs font-medium text-sky-800 transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-60 dark:border-sky-800/50 dark:text-sky-100 dark:hover:bg-sky-950/50"
-              >
-                {shareCopy.copy}
-              </button>
-              <button
-                type="button"
-                onClick={() => void handleDisableShare()}
-                disabled={!shareState?.shareEnabled || shareLoading}
-                className="rounded-lg border border-red-200 px-3 py-2 text-xs font-medium text-red-700 transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-60 dark:border-red-900/40 dark:text-red-300 dark:hover:bg-red-950/30"
-              >
-                {shareCopy.disable}
-              </button>
+              {shareUrl ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      void copyShareUrl(shareUrl)
+                    }}
+                    disabled={shareLoading}
+                    className="rounded-lg border border-sky-200 px-3 py-2 text-xs font-medium text-sky-800 transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-60 dark:border-sky-800/50 dark:text-sky-100 dark:hover:bg-sky-950/50"
+                  >
+                    {shareCopy.copy}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void handleDisableShare()}
+                    disabled={shareLoading}
+                    className="rounded-lg border border-red-200 px-3 py-2 text-xs font-medium text-red-700 transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-60 dark:border-red-900/40 dark:text-red-300 dark:hover:bg-red-950/30"
+                  >
+                    {shareCopy.disable}
+                  </button>
+                </>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => void handleShare()}
+                  disabled={shareLoading}
+                  className="rounded-lg bg-sky-600 px-3 py-2 text-xs font-medium text-white transition hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {shareLoading ? copy.common.loading : shareCopy.create}
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -544,7 +582,7 @@ export function NoteEditor() {
 
       {keyMoments.length > 0 ? (
         <div className="border-b border-gray-200 bg-white/70 px-4 py-3 xl:hidden dark:border-gray-800 dark:bg-[#151515]">
-          <div className="flex gap-3 overflow-x-auto">
+          <div className="stealth-scroll flex gap-3 overflow-x-auto">
             {keyMoments.map((moment) => (
               <button
                 key={`${moment.anchorId}-${moment.seconds}`}
@@ -592,7 +630,7 @@ export function NoteEditor() {
               <textarea
                 value={content}
                 onChange={(event) => setContent(event.target.value)}
-                className="min-h-0 flex-1 resize-none bg-white px-4 py-4 font-mono text-[13px] leading-6 outline-none dark:bg-[#111111]"
+                className="stealth-scroll min-h-0 flex-1 resize-none bg-white px-4 py-4 font-mono text-[13px] leading-6 outline-none dark:bg-[#111111]"
                 placeholder={copy.noteEditor.editorPlaceholder}
               />
             </section>
@@ -620,7 +658,7 @@ export function NoteEditor() {
                 </p>
               </div>
               <div className="flex min-h-0 flex-1 overflow-hidden">
-                <div ref={previewRef} className="min-w-0 flex-1 overflow-auto">
+                <div ref={previewRef} className="stealth-scroll min-w-0 flex-1 overflow-auto">
                   <MarkdownContent
                     content={content || copy.noteEditor.previewEmpty}
                     className="prose w-full max-w-none px-6 py-6 dark:prose-invert lg:px-8"

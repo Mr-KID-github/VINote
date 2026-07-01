@@ -28,8 +28,21 @@ LOCAL_CONFIG_PATH="${SCRIPT_DIR}/local.env"
 FRONTEND_PORT_VALUE="3100"
 
 if [[ -f "${LOCAL_CONFIG_PATH}" ]]; then
-  # shellcheck disable=SC1090
-  source "${LOCAL_CONFIG_PATH}"
+  while IFS='=' read -r key value; do
+    [[ -z "${key}" || "${key}" =~ ^[[:space:]]*# ]] && continue
+    key="${key#$'\xEF\xBB\xBF'}"
+    value="$(printf '%s' "${value}" | xargs)"
+    case "${key}" in
+      PI_HOST) PI_HOST="${value}" ;;
+      PI_USER) PI_USER="${value}" ;;
+      PI_PORT) PI_PORT="${value}" ;;
+      PI_BRANCH) PI_BRANCH="${value}" ;;
+      PI_REPO_URL) PI_REPO_URL="${value}" ;;
+      PI_REMOTE_DIR) PI_REMOTE_DIR="${value}" ;;
+      PI_ENV_FILE) PI_ENV_FILE="${value}" ;;
+      PI_SKIP_PUSH) PI_SKIP_PUSH="${value}" ;;
+    esac
+  done < "${LOCAL_CONFIG_PATH}"
 fi
 
 HOST="${HOST:-${PI_HOST:-}}"

@@ -10,6 +10,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.db import Base
+from app.db_models import TeamDB, TeamMemberDB
 from app.models.auth import AuthenticatedUser
 from app.models.audio import AudioDownloadResult
 from app.models.note_library import NoteCreateRequest
@@ -156,6 +157,156 @@ class NoteLibraryRouterTest(unittest.TestCase):
             response = self.client.get(f"/api/notes/{note.id}/media")
 
         self.assertEqual(response.status_code, 404)
+
+    def test_team_member_can_access_team_note(self):
+        self.app.dependency_overrides[get_current_user] = lambda: AuthenticatedUser(user_id="user-2")
+
+        with patch("app.services.note_repository.session_scope", self._session_scope):
+            with self._session_scope() as db:
+                team = TeamDB(id="team-1", name="Core", owner_id="user-1")
+                db.add(team)
+                db.add_all(
+                    [
+                        TeamMemberDB(team_id="team-1", user_id="user-1", role="owner"),
+                        TeamMemberDB(team_id="team-1", user_id="user-2", role="member"),
+                    ]
+                )
+
+            note = self.repository.create_note(
+                "user-1",
+                NoteCreateRequest(
+                    title="Team note",
+                    content="shared body",
+                    scope="team",
+                    team_id="team-1",
+                ),
+            )
+
+            list_response = self.client.get("/api/notes?scope=team&team_id=team-1")
+            self.assertEqual(list_response.status_code, 200)
+            data = list_response.json()
+            self.assertEqual(len(data), 1)
+            self.assertEqual(data[0]["id"], note.id)
+            self.assertEqual(data[0]["scope"], "team")
+            self.assertEqual(data[0]["team_name"], "Core")
+
+            detail_response = self.client.get(f"/api/notes/{note.id}")
+            self.assertEqual(detail_response.status_code, 200)
+            self.assertEqual(detail_response.json()["id"], note.id)
+
+    def test_non_member_cannot_create_or_open_team_note(self):
+        self.app.dependency_overrides[get_current_user] = lambda: AuthenticatedUser(user_id="user-2")
+
+        with patch("app.services.note_repository.session_scope", self._session_scope):
+            with self._session_scope() as db:
+                db.add(TeamDB(id="team-1", name="Core", owner_id="user-1"))
+                db.add(TeamMemberDB(team_id="team-1", user_id="user-1", role="owner"))
+
+            create_response = self.client.post(
+                "/api/notes",
+                json={
+                    "title": "Unauthorized team note",
+                    "content": "body",
+                    "scope": "team",
+                    "team_id": "team-1",
+                },
+            )
+            self.assertEqual(create_response.status_code, 400)
+            self.assertEqual(create_response.json()["detail"], "Team not found or access denied")
+
+            note = self.repository.create_note(
+                "user-1",
+                NoteCreateRequest(title="Private team note", content="body", scope="team", team_id="team-1"),
+            )
+
+            list_response = self.client.get("/api/notes?scope=team&team_id=team-1")
+            self.assertEqual(list_response.status_code, 200)
+            self.assertEqual(list_response.json(), [])
+
+            detail_response = self.client.get(f"/api/notes/{note.id}")
+            self.assertEqual(detail_response.status_code, 404)
+
+    def test_personal_and_team_lists_are_isolated(self):
+        with patch("app.services.note_repository.session_scope", self._session_scope):
+            with self._session_scope() as db:
+                db.add(TeamDB(id="team-1", name="Core", owner_id="user-1"))
+                db.add(TeamMemberDB(team_id="team-1", user_id="user-1", role="owner"))
+
+            personal_note = self.repository.create_note(
+                "user-1",
+                NoteCreateRequest(title="Personal note", content="personal body"),
+            )
+            team_note = self.repository.create_note(
+                "user-1",
+                NoteCreateRequest(title="Team note", content="team body", scope="team", team_id="team-1"),
+            )
+
+            personal_response = self.client.get("/api/notes?scope=personal")
+            team_response = self.client.get("/api/notes?scope=team&team_id=team-1")
+
+            self.assertEqual(personal_response.status_code, 200)
+            self.assertEqual([item["id"] for item in personal_response.json()], [personal_note.id])
+            self.assertEqual(team_response.status_code, 200)
+            self.assertEqual([item["id"] for item in team_response.json()], [team_note.id])
+
+    def test_team_member_can_update_and_delete_team_note(self):
+        self.app.dependency_overrides[get_current_user] = lambda: AuthenticatedUser(user_id="user-2")
+
+        with patch("app.services.note_repository.session_scope", self._session_scope):
+            with self._session_scope() as db:
+                db.add(TeamDB(id="team-1", name="Core", owner_id="user-1"))
+                db.add_all(
+                    [
+                        TeamMemberDB(team_id="team-1", user_id="user-1", role="owner"),
+                        TeamMemberDB(team_id="team-1", user_id="user-2", role="member"),
+                    ]
+                )
+
+            note = self.repository.create_note(
+                "user-1",
+                NoteCreateRequest(title="Team draft", content="before", scope="team", team_id="team-1"),
+            )
+
+            update_response = self.client.patch(
+                f"/api/notes/{note.id}",
+                json={"title": "Updated team note", "content": "after"},
+            )
+            self.assertEqual(update_response.status_code, 200)
+            self.assertEqual(update_response.json()["title"], "Updated team note")
+            self.assertEqual(update_response.json()["content"], "after")
+
+            delete_response = self.client.delete(f"/api/notes/{note.id}")
+            self.assertEqual(delete_response.status_code, 204)
+
+            detail_response = self.client.get(f"/api/notes/{note.id}")
+            self.assertEqual(detail_response.status_code, 404)
+
+    def test_removed_member_loses_team_note_access(self):
+        self.app.dependency_overrides[get_current_user] = lambda: AuthenticatedUser(user_id="user-2")
+
+        with patch("app.services.note_repository.session_scope", self._session_scope):
+            with self._session_scope() as db:
+                db.add(TeamDB(id="team-1", name="Core", owner_id="user-1"))
+                db.add_all(
+                    [
+                        TeamMemberDB(id="member-1", team_id="team-1", user_id="user-1", role="owner"),
+                        TeamMemberDB(id="member-2", team_id="team-1", user_id="user-2", role="member"),
+                    ]
+                )
+
+            note = self.repository.create_note(
+                "user-1",
+                NoteCreateRequest(title="Shared note", content="body", scope="team", team_id="team-1"),
+            )
+            before_response = self.client.get(f"/api/notes/{note.id}")
+            self.assertEqual(before_response.status_code, 200)
+
+            with self._session_scope() as db:
+                membership = db.get(TeamMemberDB, "member-2")
+                db.delete(membership)
+
+            after_response = self.client.get(f"/api/notes/{note.id}")
+            self.assertEqual(after_response.status_code, 404)
 
 
 if __name__ == "__main__":

@@ -27,6 +27,9 @@ class Settings:
                 "http://127.0.0.1:3100",
                 "http://localhost:5173",
                 "http://127.0.0.1:5173",
+                "http://tauri.localhost",
+                "https://tauri.localhost",
+                "tauri://localhost",
             ]
         ),
     )

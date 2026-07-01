@@ -1,0 +1,126 @@
+name: Deploy Pi Test Environment
+
+on:
+  push:
+    branches:
+      - dev
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-pi-dev
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    name: Deploy to Raspberry Pi test environment
+    runs-on:
+      - self-hosted
+      - linux
+      - arm
+      - pi
+      - vinote-test
+    environment: pi-test
+    env:
+      PI_REMOTE_DIR: ${{ vars.PI_REMOTE_DIR }}
+      FRONTEND_PORT: ${{ vars.FRONTEND_PORT }}
+      BACKEND_PORT: ${{ vars.BACKEND_PORT }}
+      DOCS_PORT: ${{ vars.DOCS_PORT }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Write runtime env file
+        shell: bash
+        env:
+          PI_TEST_ENV_FILE: ${{ secrets.PI_TEST_ENV_FILE }}
+        run: |
+          set -euo pipefail
+          if [ -z "${PI_TEST_ENV_FILE:-}" ]; then
+            echo "Missing required secret: PI_TEST_ENV_FILE" >&2
+            exit 1
+          fi
+
+          printf '%s' "${PI_TEST_ENV_FILE}" > .env
+
+          if [ ! -s .env ]; then
+            echo "Generated .env is empty." >&2
+            exit 1
+          fi
+
+      - name: Preflight checks
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          docker --version
+          curl --version
+
+          if docker compose version >/dev/null 2>&1; then
+            echo "Detected Docker Compose plugin"
+          elif command -v docker-compose >/dev/null 2>&1; then
+            echo "Detected legacy docker-compose"
+          else
+            echo "Docker Compose is not available on the runner." >&2
+            exit 1
+          fi
+
+          if ! id -nG | tr ' ' '\n' | grep -qx docker; then
+            echo "Runner user must belong to the docker group." >&2
+            exit 1
+          fi
+
+      - name: Deploy current checkout
+        shell: bash
+        run: |
+          set -euo pipefail
+          chmod +x deploy/pi/deploy-from-checkout.sh
+          ./deploy/pi/deploy-from-checkout.sh
+
+      - name: Smoke checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/check_reverse_proxy.py \
+            --host 127.0.0.1 \
+            --backend-port "${BACKEND_PORT:-8900}" \
+            --frontend-port "${FRONTEND_PORT:-3100}" \
+            --docs-port "${DOCS_PORT:-3101}"
+
+      - name: Show compose status
+        shell: bash
+        run: |
+          set -euo pipefail
+          target_dir="${PI_REMOTE_DIR:-/home/zouyu/vinote}"
+          cd "${target_dir}"
+
+          if docker compose version >/dev/null 2>&1; then
+            docker compose ps
+          else
+            docker-compose ps
+          fi
+
+      - name: Dump failing service logs
+        if: failure()
+        shell: bash
+        run: |
+          set +e
+          target_dir="${PI_REMOTE_DIR:-/home/zouyu/vinote}"
+
+          if [ ! -d "${target_dir}" ]; then
+            echo "Target directory ${target_dir} does not exist yet."
+            exit 0
+          fi
+
+          cd "${target_dir}"
+
+          if docker compose version >/dev/null 2>&1; then
+            docker compose logs --tail=100 backend frontend docs
+          elif command -v docker-compose >/dev/null 2>&1; then
+            docker-compose logs --tail=100 backend frontend docs
+          else
+            echo "Docker Compose unavailable while collecting logs."
+          fi

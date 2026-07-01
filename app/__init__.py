@@ -9,12 +9,12 @@ from app.db import init_db
 
 
 def create_app() -> FastAPI:
-    from app.routers import auth, mcp, model_profiles, note, note_library, preferences, share
+    from app.routers import auth, mcp, model_profiles, note, note_library, preferences, share, stt_profiles, teams
 
     app = FastAPI(
         title="VINote",
         description="Video-to-markdown note generation API.",
-        version="0.1.0",
+        version="0.2.0",
     )
 
     app.add_middleware(
@@ -39,6 +39,8 @@ def create_app() -> FastAPI:
     app.include_router(share.private_router, prefix="/api")
     app.include_router(preferences.router, prefix="/api")
     app.include_router(model_profiles.router, prefix="/api")
+    app.include_router(stt_profiles.router, prefix="/api")
+    app.include_router(teams.router, prefix="/api")
     app.include_router(mcp.router)
     app.include_router(share.public_router)
     return app

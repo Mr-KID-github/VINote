@@ -23,7 +23,7 @@ export function KeyMomentsRail({ moments, activeAnchorId, onSelectMoment }: KeyM
         </p>
       </div>
 
-      <div className="flex-1 space-y-3 overflow-y-auto p-4">
+      <div className="stealth-scroll flex-1 space-y-3 overflow-y-auto p-4">
         {moments.map((moment) => {
           const active = moment.anchorId === activeAnchorId
           return (

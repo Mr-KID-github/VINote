@@ -1,11 +1,11 @@
 import mimetypes
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import FileResponse
 
 from app.models.auth import AuthenticatedUser
-from app.models.note_library import NoteCreateRequest, NoteRecordResponse, NoteUpdateRequest
+from app.models.note_library import NoteCreateRequest, NoteRecordResponse, NoteScope, NoteUpdateRequest
 from app.services.auth_service import get_current_user
 from app.services.task_artifact_service import TaskArtifactService
 from app.services.note_repository import NoteRepository
@@ -16,8 +16,12 @@ _artifact_service = TaskArtifactService()
 
 
 @router.get("/notes", response_model=list[NoteRecordResponse])
-def list_notes(user: AuthenticatedUser = Depends(get_current_user)):
-    return _repository.list_notes(user.user_id)
+def list_notes(
+    scope: NoteScope = Query(default="personal"),
+    team_id: str | None = Query(default=None),
+    user: AuthenticatedUser = Depends(get_current_user),
+):
+    return _repository.list_notes(user.user_id, scope=scope, team_id=team_id)
 
 
 @router.get("/notes/{note_id}", response_model=NoteRecordResponse)
@@ -63,7 +67,10 @@ def get_note_media(note_id: str, user: AuthenticatedUser = Depends(get_current_u
 
 @router.post("/notes", response_model=NoteRecordResponse, status_code=status.HTTP_201_CREATED)
 def create_note(payload: NoteCreateRequest, user: AuthenticatedUser = Depends(get_current_user)):
-    return _repository.create_note(user.user_id, payload)
+    try:
+        return _repository.create_note(user.user_id, payload)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
 
 @router.patch("/notes/{note_id}", response_model=NoteRecordResponse)
