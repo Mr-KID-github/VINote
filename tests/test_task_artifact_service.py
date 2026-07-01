@@ -68,5 +68,59 @@ class TaskArtifactServiceTest(unittest.TestCase):
             self.assertEqual(staged.read_bytes(), b"video")
 
 
+    def test_audio_meta_uses_rename_safe_relative_path_for_task_media(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            service = TaskArtifactService(Path(temp_dir))
+            task_dir = service.create_task_dir("task-audio")
+            media_dir = task_dir / "media"
+            media_dir.mkdir()
+            source_audio = media_dir / "source_audio.webm"
+            source_audio.write_bytes(b"audio")
+            audio_meta = AudioDownloadResult(
+                file_path=str(source_audio),
+                title="Meeting",
+                duration=1.0,
+                video_id="task-audio",
+                platform="local",
+                cover_url=None,
+                raw_info={},
+            )
+
+            service.save_audio_meta(task_dir, audio_meta)
+            final_dir = service.finalize_task_dir(task_dir, "Meeting", "task-audio")
+            loaded = service.load_audio_meta(final_dir)
+
+            self.assertIsNotNone(loaded)
+            self.assertEqual(Path(loaded.file_path).read_bytes(), b"audio")
+            self.assertEqual(Path(loaded.file_path).parent, final_dir / "media")
+
+    def test_audio_meta_repairs_stale_absolute_path_after_finalize(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            service = TaskArtifactService(Path(temp_dir))
+            task_dir = service.create_task_dir("task-stale")
+            media_dir = task_dir / "media"
+            media_dir.mkdir()
+            source_audio = media_dir / "source_audio.webm"
+            source_audio.write_bytes(b"audio")
+            audio_meta = AudioDownloadResult(
+                file_path=str(source_audio),
+                title="Meeting",
+                duration=1.0,
+                video_id="task-stale",
+                platform="local",
+                cover_url=None,
+                raw_info={},
+            )
+            service.write_json(task_dir / "audio_meta.json", audio_meta.__dict__)
+
+            final_dir = service.finalize_task_dir(task_dir, "Meeting", "task-stale")
+            loaded = service.load_audio_meta(final_dir)
+
+            self.assertIsNotNone(loaded)
+            self.assertFalse(source_audio.exists())
+            self.assertEqual(Path(loaded.file_path), final_dir / "media" / "source_audio.webm")
+            self.assertEqual(Path(loaded.file_path).read_bytes(), b"audio")
+
+
 if __name__ == "__main__":
     unittest.main()
