@@ -1,3 +1,7 @@
+import importlib.util
+import subprocess
+import sys
+from pathlib import Path
 from typing import Optional
 
 from fastapi import HTTPException
@@ -5,6 +9,8 @@ from fastapi import HTTPException
 from app.config import settings
 from app.models.stt_profile import (
     GROQ_STT_BASE_URL,
+    LocalSTTInstallResponse,
+    LocalSTTSupportStatus,
     STTProfileCreateRequest,
     STTProfileRecord,
     STTProfileResponse,
@@ -25,6 +31,35 @@ class STTProfileService:
             return None
         cleaned = value.strip()
         return cleaned or None
+
+    @staticmethod
+    def _local_support_requirements_path() -> Path:
+        return Path(__file__).resolve().parents[2] / "requirements.local-transcribers.txt"
+
+    @staticmethod
+    def _local_support_install_command() -> str:
+        return "pip install -r requirements.local-transcribers.txt"
+
+    def get_local_support_status(self) -> LocalSTTSupportStatus:
+        installed = importlib.util.find_spec("faster_whisper") is not None
+        return LocalSTTSupportStatus(
+            installed=installed,
+            install_command=self._local_support_install_command(),
+            message=(
+                "本地 STT 支持已安装。所选模型可能会在首次使用时自动下载。"
+                if installed
+                else "本地 STT 支持尚未安装。"
+            ),
+        )
+
+    def install_local_support(self) -> LocalSTTInstallResponse:
+        requirements_path = self._local_support_requirements_path()
+        command = [sys.executable, "-m", "pip", "install", "-r", str(requirements_path)]
+        completed = subprocess.run(command, capture_output=True, text=True, timeout=600)
+        output = "\n".join(part for part in [completed.stdout.strip(), completed.stderr.strip()] if part)
+        if completed.returncode != 0:
+            raise HTTPException(status_code=500, detail=output or "Failed to install local STT support")
+        return LocalSTTInstallResponse(ok=True, output=output, status=self.get_local_support_status())
 
     def _normalize_fields(
         self,

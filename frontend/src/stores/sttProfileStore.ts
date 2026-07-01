@@ -2,9 +2,12 @@ import { create } from 'zustand'
 import {
   createSTTProfile,
   deleteSTTProfile,
+  fetchLocalSTTSupport,
   fetchSTTProfiles,
+  installLocalSTTSupport,
   setDefaultSTTProfile,
   updateSTTProfile,
+  type LocalSTTSupportStatus,
   type STTProfile,
   type STTProfileDraft,
 } from '../lib/sttProfiles'
@@ -16,8 +19,13 @@ interface STTProfileState {
   loading: boolean
   saving: boolean
   error: string
+  localSupport: LocalSTTSupportStatus | null
+  localSupportLoading: boolean
+  installingLocalSupport: boolean
   selectedProfileId: string
   loadProfiles: () => Promise<void>
+  loadLocalSupport: () => Promise<void>
+  installLocalSupport: () => Promise<LocalSTTSupportStatus>
   createProfile: (draft: STTProfileDraft) => Promise<STTProfile>
   updateProfile: (id: string, draft: Partial<STTProfileDraft>) => Promise<STTProfile>
   deleteProfile: (id: string) => Promise<void>
@@ -31,6 +39,9 @@ const emptyState = {
   loading: false,
   saving: false,
   error: '',
+  localSupport: null as LocalSTTSupportStatus | null,
+  localSupportLoading: false,
+  installingLocalSupport: false,
   selectedProfileId: '',
 }
 
@@ -62,6 +73,32 @@ export const useSTTProfileStore = create<STTProfileState>((set, get) => ({
         loading: false,
         error: error instanceof Error ? error.message : 'Failed to load STT profiles',
       })
+    }
+  },
+  loadLocalSupport: async () => {
+    set({ localSupportLoading: true, error: '' })
+    try {
+      const localSupport = await fetchLocalSTTSupport()
+      set({ localSupport, localSupportLoading: false })
+    } catch (error) {
+      set({
+        localSupportLoading: false,
+        error: error instanceof Error ? error.message : 'Failed to load local STT support status',
+      })
+    }
+  },
+  installLocalSupport: async () => {
+    set({ installingLocalSupport: true, error: '' })
+    try {
+      const result = await installLocalSTTSupport()
+      set({ localSupport: result.status, installingLocalSupport: false })
+      return result.status
+    } catch (error) {
+      set({
+        installingLocalSupport: false,
+        error: error instanceof Error ? error.message : 'Failed to install local STT support',
+      })
+      throw error
     }
   },
   createProfile: async (draft) => {

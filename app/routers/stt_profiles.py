@@ -1,7 +1,13 @@
 from fastapi import APIRouter, Depends, Response, status
 
 from app.models.auth import AuthenticatedUser
-from app.models.stt_profile import STTProfileCreateRequest, STTProfileResponse, STTProfileUpdateRequest
+from app.models.stt_profile import (
+    LocalSTTInstallResponse,
+    LocalSTTSupportStatus,
+    STTProfileCreateRequest,
+    STTProfileResponse,
+    STTProfileUpdateRequest,
+)
 from app.services.auth_service import get_current_user
 from app.services.stt_profile_service import STTProfileService
 
@@ -12,6 +18,16 @@ _service = STTProfileService()
 @router.get("/stt-profiles", response_model=list[STTProfileResponse])
 def list_stt_profiles(user: AuthenticatedUser = Depends(get_current_user)):
     return _service.list_profiles(user.user_id)
+
+
+@router.get("/stt-profiles/local-support", response_model=LocalSTTSupportStatus)
+def get_local_stt_support(_user: AuthenticatedUser = Depends(get_current_user)):
+    return _service.get_local_support_status()
+
+
+@router.post("/stt-profiles/local-support/install", response_model=LocalSTTInstallResponse)
+def install_local_stt_support(_user: AuthenticatedUser = Depends(get_current_user)):
+    return _service.install_local_support()
 
 
 @router.post("/stt-profiles", response_model=STTProfileResponse, status_code=status.HTTP_201_CREATED)

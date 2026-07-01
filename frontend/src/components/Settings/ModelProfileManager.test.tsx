@@ -32,7 +32,12 @@ const sttStoreMock = vi.hoisted(() => ({
     loading: boolean
     saving: boolean
     error: string
+    localSupport: { provider: string; installed: boolean; installCommand: string; message: string } | null
+    localSupportLoading: boolean
+    installingLocalSupport: boolean
     loadProfiles: ReturnType<typeof vi.fn>
+    loadLocalSupport: ReturnType<typeof vi.fn>
+    installLocalSupport: ReturnType<typeof vi.fn>
     createProfile: ReturnType<typeof vi.fn>
     updateProfile: ReturnType<typeof vi.fn>
     deleteProfile: ReturnType<typeof vi.fn>
@@ -133,7 +138,17 @@ beforeEach(() => {
     loading: false,
     saving: false,
     error: '',
+    localSupport: {
+      provider: 'faster-whisper',
+      installed: false,
+      installCommand: 'pip install -r requirements.local-transcribers.txt',
+      message: '本地 STT 支持尚未安装。',
+    },
+    localSupportLoading: false,
+    installingLocalSupport: false,
     loadProfiles: vi.fn(),
+    loadLocalSupport: vi.fn(),
+    installLocalSupport: vi.fn(),
     createProfile: vi.fn(),
     updateProfile: vi.fn(),
     deleteProfile: vi.fn(),
@@ -206,5 +221,19 @@ describe('STTProfileManager', () => {
     })
     expect(defaultCheckbox).toBeChecked()
     expect(defaultCheckbox).toBeDisabled()
+  })
+
+  it('shows a local STT install prompt and install action for faster-whisper', async () => {
+    renderWithI18n(<STTProfileManager />)
+
+    await userEvent.selectOptions(screen.getAllByRole('combobox')[0], 'faster-whisper')
+
+    expect(screen.getByText('本地 STT 支持尚未安装。')).toBeInTheDocument()
+    expect(screen.getByText('pip install -r requirements.local-transcribers.txt')).toBeInTheDocument()
+    const installButton = screen.getByRole('button', { name: '安装本地 STT 支持' })
+
+    await userEvent.click(installButton)
+
+    expect(sttStoreMock.state.installLocalSupport).toHaveBeenCalled()
   })
 })
