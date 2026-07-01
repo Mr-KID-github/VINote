@@ -121,6 +121,7 @@ describe('MeetingRecorderDock', () => {
     expect(screen.queryByLabelText('拖动会议录音浮窗')).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: '关闭' })).toBeInTheDocument()
     expect(screen.getByText('准备就绪')).toBeInTheDocument()
+    expect(screen.getByTestId('meeting-recorder-controls').className).toContain('mt-1')
 
     await userEvent.click(screen.getByRole('button', { name: '开始' }))
     expect(audioRecorderMock.start).toHaveBeenCalledTimes(1)

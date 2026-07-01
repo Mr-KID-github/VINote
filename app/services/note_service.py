@@ -302,6 +302,7 @@ class NoteService:
         resolved_output_language = normalize_output_language(output_language)
         resolved_summary_mode = normalize_summary_mode(summary_mode)
         final_dir = self.artifact_service.finalize_task_dir(task_dir, audio_meta.title, task_id)
+        audio_meta = self.artifact_service.load_audio_meta(final_dir) or audio_meta
         context = PipelineContext(
             task_id=task_id,
             task_dir=final_dir,

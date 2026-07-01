@@ -429,7 +429,7 @@ export function MeetingRecorderDock() {
                 {statusText}
               </div>
             </div>
-            <div className="ml-2 flex shrink-0 items-center gap-4">
+            <div data-testid="meeting-recorder-controls" className="ml-2 mt-1 flex shrink-0 items-center gap-4">
               {phase !== 'failed' ? (
                 <button
                   type="button"
