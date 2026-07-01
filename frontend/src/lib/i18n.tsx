@@ -74,6 +74,11 @@ const messages = {
       emptyTitle: 'Your note library is empty',
       emptyBody: 'Generate a note or create one manually, then it will appear here.',
       noContent: 'No content yet.',
+      statusLabels: {
+        pending: 'Pending',
+        transcribing_failed: 'Transcription failed',
+        generation_failed: 'Generation failed',
+      },
     },
     noteEditor: {
       missingId: 'Missing note id',
@@ -165,7 +170,9 @@ const messages = {
         stopped: 'Stopped',
         uploading: 'Uploading audio',
         transcribing: 'Transcribing audio',
+        transcribingFailed: 'Transcription failed',
         summarizing: 'Generating summary',
+        generationFailed: 'Generation failed',
         saving: 'Saving note',
         completed: 'Completed',
         failed: 'Failed',
@@ -297,6 +304,11 @@ const messages = {
       emptyTitle: '你的笔记库还是空的',
       emptyBody: '先生成一篇笔记，或手动创建一篇，它就会出现在这里。',
       noContent: '还没有内容。',
+      statusLabels: {
+        pending: '待处理',
+        transcribing_failed: '转写失败',
+        generation_failed: '生成失败',
+      },
     },
     noteEditor: {
       missingId: '缺少笔记 ID',
@@ -388,7 +400,9 @@ const messages = {
         stopped: '已停止',
         uploading: '上传音频',
         transcribing: '转写音频',
+        transcribingFailed: '转写失败',
         summarizing: '生成总结',
+        generationFailed: '生成失败',
         saving: '保存笔记',
         completed: '已完成',
         failed: '失败',

@@ -40,8 +40,8 @@ interface NoteLibraryState {
   error: string
   loadNotes: () => Promise<void>
   loadNoteById: (id: string) => Promise<NoteRecord | null>
-  saveNote: (title: string, content: string, videoUrl?: string, taskId?: string, sourceType?: string) => Promise<NoteRecord | null>
-  updateNote: (id: string, title: string, content: string) => Promise<NoteRecord | null>
+  saveNote: (title: string, content: string, videoUrl?: string, taskId?: string, sourceType?: string, status?: string) => Promise<NoteRecord | null>
+  updateNote: (id: string, title: string, content: string, status?: string) => Promise<NoteRecord | null>
   deleteNote: (id: string) => Promise<void>
   createShareLink: (id: string) => Promise<NoteShareRecord | null>
   getShareLink: (id: string) => Promise<NoteShareRecord | null>
@@ -120,7 +120,7 @@ export const useNoteLibraryStore = create<NoteLibraryState>((set, get) => ({
       return null
     }
   },
-  saveNote: async (title, content, videoUrl, taskId, sourceType) => {
+  saveNote: async (title, content, videoUrl, taskId, sourceType, status = 'done') => {
     try {
       const normalizedTitle = title.trim() || 'Untitled note'
       const data = await apiJson<NoteRow>('/api/notes', {
@@ -132,7 +132,7 @@ export const useNoteLibraryStore = create<NoteLibraryState>((set, get) => ({
           video_url: videoUrl || null,
           task_id: taskId || null,
           source_type: sourceType || (videoUrl ? 'video' : 'file'),
-          status: 'done',
+          status,
         }),
       })
       const note = mapRow(data)
@@ -149,13 +149,13 @@ export const useNoteLibraryStore = create<NoteLibraryState>((set, get) => ({
       return null
     }
   },
-  updateNote: async (id, title, content) => {
+  updateNote: async (id, title, content, status) => {
     try {
       const normalizedTitle = title.trim() || 'Untitled note'
       const data = await apiJson<NoteRow>(`/api/notes/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title: normalizedTitle, content }),
+        body: JSON.stringify({ title: normalizedTitle, content, status }),
       })
       const note = mapRow(data)
       set((state) => ({

@@ -19,6 +19,7 @@ const meetingGenerationMock = vi.hoisted(() => ({
   completeMeetingRecordingGeneration: vi.fn(),
 }))
 const saveNoteMock = vi.hoisted(() => vi.fn())
+const updateNoteMock = vi.hoisted(() => vi.fn())
 
 vi.mock('react-router-dom', async (importOriginal) => {
   const actual = await importOriginal<typeof import('react-router-dom')>()
@@ -51,7 +52,7 @@ vi.mock('../../stores/languageStore', () => ({
 }))
 
 vi.mock('../../stores/noteLibraryStore', () => ({
-  useNoteLibraryStore: () => ({ saveNote: saveNoteMock }),
+  useNoteLibraryStore: () => ({ saveNote: saveNoteMock, updateNote: updateNoteMock }),
 }))
 
 vi.mock('../../lib/meetingGeneration', async (importOriginal) => {
@@ -85,7 +86,8 @@ describe('MeetingRecorderDock', () => {
       title: '会议录音 2026/07/01',
       content: '# Summary',
     })
-    saveNoteMock.mockResolvedValue({ id: 'note-1', title: '会议录音', content: '# Summary' })
+    saveNoteMock.mockResolvedValue({ id: 'draft-1', title: '会议录音', content: '# Draft', taskId: 'task-1', status: 'pending' })
+    updateNoteMock.mockResolvedValue({ id: 'draft-1', title: '会议录音', content: '# Summary', taskId: 'task-1', status: 'done' })
   })
 
   it('shows the smallest circular idle launcher and does not start recording until Start is clicked', async () => {
@@ -202,8 +204,46 @@ describe('MeetingRecorderDock', () => {
     expect(statusLine).toHaveTextContent('音频已保留')
     expect(statusLine).toHaveTextContent('请先配置可用的 LLM 和 STT API Key')
     expect(useMeetingRecorderStore.getState().recordedAudio).toBeInstanceOf(Blob)
+    await waitFor(() => {
+      expect(saveNoteMock).toHaveBeenCalledWith(
+        expect.stringContaining('会议录音'),
+        expect.stringContaining('原始音频'),
+        undefined,
+        'task-1',
+        'meeting_recording',
+        'pending',
+      )
+      expect(updateNoteMock).toHaveBeenCalledWith(
+        'draft-1',
+        expect.stringContaining('会议录音'),
+        expect.stringContaining('错误原因'),
+        'generation_failed',
+      )
+    })
     expect(screen.getByRole('button', { name: '重新生成' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '重新录制' })).toBeInTheDocument()
+  })
+
+  it('creates a visible meeting recording draft after audio upload and completes that same note on success', async () => {
+    renderDock()
+
+    await userEvent.click(screen.getByRole('button', { name: '开始会议录音' }))
+    await userEvent.click(screen.getByRole('button', { name: '开始' }))
+    await userEvent.click(screen.getByRole('button', { name: '暂停' }))
+    await userEvent.click(screen.getByRole('button', { name: '停止' }))
+
+    await waitFor(() => {
+      expect(saveNoteMock).toHaveBeenCalledWith(
+        expect.stringContaining('会议录音'),
+        expect.stringContaining('/api/task/task-1/artifacts/media/source_audio.webm'),
+        undefined,
+        'task-1',
+        'meeting_recording',
+        'pending',
+      )
+      expect(updateNoteMock).toHaveBeenCalledWith('draft-1', '会议录音 2026/07/01', '# Summary', 'done')
+    })
+    expect(screen.getByRole('button', { name: '查看纪要' })).toBeInTheDocument()
   })
 
   it('keeps generated content and shows save retry messaging in the status line instead of a reserved bottom card', async () => {

@@ -3,7 +3,7 @@ import { ChevronDown, Loader2, Mic, Minus, Pause, Play, RotateCcw, Square, X } f
 import clsx from 'clsx'
 import { useNavigate } from 'react-router-dom'
 import { useAudioRecorder } from '../../hooks/useAudioRecorder'
-import { MeetingGenerationError, completeMeetingRecordingGeneration, submitMeetingRecording } from '../../lib/meetingGeneration'
+import { MEETING_NOTE_SOURCE_TYPE, MeetingGenerationError, completeMeetingRecordingGeneration, createMeetingRecordingTitle, submitMeetingRecording } from '../../lib/meetingGeneration'
 import { useI18n } from '../../lib/i18n'
 import { useMeetingRecorderStore, type MeetingRecorderPhase, type MeetingRecorderStage } from '../../stores/meetingRecorderStore'
 import { useNoteLibraryStore } from '../../stores/noteLibraryStore'
@@ -68,12 +68,49 @@ function recordingDotClass(phase: MeetingRecorderPhase, activeShadow: string) {
   )
 }
 
+function meetingAudioExtension(audioBlob?: Blob | null) {
+  const mime = (audioBlob?.type || '').toLowerCase()
+  if (mime.includes('mp4')) return 'm4a'
+  if (mime.includes('mpeg')) return 'mp3'
+  if (mime.includes('ogg')) return 'ogg'
+  if (mime.includes('wav')) return 'wav'
+  return 'webm'
+}
+
+function buildMeetingDraftContent({
+  taskId,
+  audioBlob,
+  startedAt,
+  statusText,
+  errorMessage,
+}: {
+  taskId: string
+  audioBlob?: Blob | null
+  startedAt: Date
+  statusText: string
+  errorMessage?: string
+}) {
+  const durationSeconds = useMeetingRecorderStore.getState().elapsedSeconds
+  const audioUrl = taskId ? `/api/task/${taskId}/artifacts/media/source_audio.${meetingAudioExtension(audioBlob)}` : ''
+  return [
+    '## 会议录音草稿',
+    '',
+    `- 当前状态：${statusText}`,
+    `- 录音时长：${formatElapsedTime(durationSeconds)}`,
+    `- 创建时间：${startedAt.toLocaleString()}`,
+    audioUrl ? `- 原始音频：[打开录音](${audioUrl})` : '- 原始音频：已保留，等待任务记录同步。',
+    errorMessage ? `- 错误原因：${errorMessage}` : '',
+    '',
+    audioUrl ? `<audio controls src="${audioUrl}"></audio>` : '',
+  ].filter(Boolean).join('\n')
+}
+
 export function MeetingRecorderDock() {
   const navigate = useNavigate()
   const recorder = useAudioRecorder()
   const { copy, language } = useI18n()
   const recorderCopy = copy.meetingRecorder
-  const { saveNote } = useNoteLibraryStore()
+  const { saveNote, updateNote } = useNoteLibraryStore()
   const {
     isPanelOpen,
     isMinimized,
@@ -106,6 +143,8 @@ export function MeetingRecorderDock() {
   const minimizedPointerRef = useRef<{ startX: number; startY: number; baseX: number; baseY: number; dragging: boolean } | null>(null)
   const suppressRestoreRef = useRef(false)
   const startedAtRef = useRef<Date | null>(null)
+  const draftNoteIdRef = useRef<string | null>(null)
+  const draftTitleRef = useRef('')
   const finishInFlightRef = useRef(false)
 
   useEffect(() => {
@@ -190,6 +229,8 @@ export function MeetingRecorderDock() {
   }
 
   const handleOpenLauncher = () => {
+    draftNoteIdRef.current = null
+    draftTitleRef.current = ''
     resetSession()
     setPosition(getInitialPosition())
     setHasCustomPosition(false)
@@ -228,7 +269,10 @@ export function MeetingRecorderDock() {
       setRecordedAudio(audioBlob)
       await generateFromAudio(audioBlob)
     } catch (stopError) {
-      failStage(stageFromError(stopError), formatRecorderFailure(stopError, recorderCopy))
+      const failedStage = stageFromError(stopError)
+      const failureMessage = formatRecorderFailure(stopError, recorderCopy)
+      await markDraftFailed(failedStage, failureMessage)
+      failStage(failedStage, failureMessage)
     } finally {
       finishInFlightRef.current = false
     }
@@ -236,20 +280,70 @@ export function MeetingRecorderDock() {
 
   const generateFromAudio = async (audioBlob: Blob) => {
     setPhase('uploading')
+    const startedAt = startedAtRef.current || new Date()
     const response = await submitMeetingRecording({
       audioBlob,
-      startedAt: startedAtRef.current || new Date(),
+      startedAt,
       outputLanguage: language,
       summaryMode: 'default',
     }, { onStage: setPhase })
     setTaskId(response.task_id)
+    await createMeetingDraft(response.task_id, audioBlob, startedAt)
     const note = await completeMeetingRecordingGeneration({
       taskId: response.task_id,
-      saveNote,
+      saveNote: saveCompletedMeetingNote,
       onStage: setPhase,
     })
+    if (draftNoteIdRef.current && note.id !== draftNoteIdRef.current) {
+      const updated = await updateNote(draftNoteIdRef.current, note.title, note.content, 'done')
+      if (updated) {
+        setGeneratedNote({ title: updated.title, markdown: updated.content, taskId: response.task_id })
+        complete(updated.id)
+        return
+      }
+    }
     setGeneratedNote({ title: note.title, markdown: note.content, taskId: response.task_id })
     complete(note.id)
+  }
+
+  const createMeetingDraft = async (taskId: string, audioBlob: Blob, startedAt: Date) => {
+    const title = createMeetingRecordingTitle(startedAt, language)
+    draftTitleRef.current = title
+    const draft = await saveNote(
+      title,
+      buildMeetingDraftContent({ taskId, audioBlob, startedAt, statusText: recorderCopy.phases.transcribing }),
+      undefined,
+      taskId,
+      MEETING_NOTE_SOURCE_TYPE,
+      'pending',
+    )
+    if (draft) draftNoteIdRef.current = draft.id
+  }
+
+  const saveCompletedMeetingNote = async (title: string, content: string) => {
+    if (draftNoteIdRef.current) {
+      const updated = await updateNote(draftNoteIdRef.current, title, content, 'done')
+      if (updated) return updated
+    }
+    return saveNote(title, content, undefined, useMeetingRecorderStore.getState().taskId || undefined, MEETING_NOTE_SOURCE_TYPE, 'done')
+  }
+
+  const markDraftFailed = async (failedStage: MeetingRecorderStage, failureMessage: string) => {
+    if (!draftNoteIdRef.current) return
+    const state = useMeetingRecorderStore.getState()
+    const statusText = failedStage === 'transcribing' ? recorderCopy.phases.transcribingFailed : recorderCopy.phases.generationFailed
+    await updateNote(
+      draftNoteIdRef.current,
+      draftTitleRef.current || createMeetingRecordingTitle(startedAtRef.current || new Date(), language),
+      buildMeetingDraftContent({
+        taskId: state.taskId || '',
+        audioBlob: state.recordedAudio,
+        startedAt: startedAtRef.current || new Date(),
+        statusText,
+        errorMessage: failureMessage,
+      }),
+      failedStage === 'transcribing' ? 'transcribing_failed' : 'generation_failed',
+    )
   }
 
   const handleRetry = async () => {

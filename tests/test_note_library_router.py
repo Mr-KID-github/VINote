@@ -158,5 +158,30 @@ class NoteLibraryRouterTest(unittest.TestCase):
         self.assertEqual(response.status_code, 404)
 
 
+    def test_patch_note_updates_status_for_meeting_recording_drafts(self):
+        with patch("app.services.note_repository.session_scope", self._session_scope):
+            note = self.repository.create_note(
+                "user-1",
+                NoteCreateRequest(
+                    title="Meeting draft",
+                    content="pending audio",
+                    source_type="meeting_recording",
+                    task_id="task-draft",
+                    status="pending",
+                ),
+            )
+
+            response = self.client.patch(
+                f"/api/notes/{note.id}",
+                json={"title": "Meeting draft", "content": "错误原因：LLM failed", "status": "generation_failed"},
+            )
+            listed = self.client.get("/api/notes")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["status"], "generation_failed")
+        self.assertEqual(listed.json()[0]["status"], "generation_failed")
+        self.assertEqual(listed.json()[0]["task_id"], "task-draft")
+
+
 if __name__ == "__main__":
     unittest.main()
