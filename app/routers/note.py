@@ -6,6 +6,7 @@ import logging
 import re
 import uuid
 from pathlib import Path
+from typing import Optional
 
 from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse
@@ -400,6 +401,50 @@ def get_task_artifact(task_id: str, asset_path: str):
 @router.get("/styles")
 def get_styles():
     return {"styles": [{"value": key, "description": value} for key, value in STYLE_MAP.items()]}
+
+
+@router.post("/generate_from_upload", response_model=dict)
+def generate_from_upload_async(
+    background_tasks: BackgroundTasks,
+    file: UploadFile = File(...),
+    title: str = Form("Meeting recording"),
+    style: str = Form("meeting"),
+    summary_mode: str = Form("default"),
+    source_type: str = Form("audio"),
+    output_language: Optional[str] = Form(None),
+    user: AuthenticatedUser | None = Depends(get_optional_current_user),
+):
+    if source_type != "audio":
+        raise HTTPException(status_code=400, detail="Only audio uploads are supported for this endpoint")
+
+    task_id = str(uuid.uuid4())
+    task_dir = _note_service.artifact_service.create_task_dir(task_id)
+    media_dir = task_dir / "media"
+    media_dir.mkdir(parents=True, exist_ok=True)
+    suffix = Path(file.filename or "meeting-recording.webm").suffix or ".webm"
+    audio_path = media_dir / f"source_audio{suffix.lower()}"
+    try:
+        with audio_path.open("wb") as handle:
+            while chunk := file.file.read(1024 * 1024):
+                handle.write(chunk)
+    finally:
+        file.file.close()
+    _note_service.artifact_service.update_status(task_dir, "uploaded", "Audio uploaded and preserved")
+
+    req = LocalFileRequest(
+        file_path=str(audio_path),
+        title=title,
+        style=style or "meeting",
+        summary_mode=summary_mode,  # type: ignore[arg-type]
+        output_language=output_language,  # type: ignore[arg-type]
+    )
+    background_tasks.add_task(
+        _run_task_from_file,
+        task_id=task_id,
+        req=req,
+        user_id=user.user_id if user else None,
+    )
+    return {"task_id": task_id, "status": "uploaded", "message": "Audio uploaded and preserved"}
 
 
 @router.post("/generate_from_file", response_model=dict)

@@ -65,10 +65,10 @@ interface MeetingRecorderState {
 }
 
 const retryDescriptions: Record<MeetingRecorderStage, string> = {
-  uploading: '重试将复用这段录音重新上传。',
-  transcribing: '重试将复用这段录音重新转写。',
-  summarizing: '重试将复用已保留的录音或转写结果继续生成纪要。',
-  saving: '重试将复用已生成的纪要内容重新保存。',
+  uploading: '重新生成将复用这段录音重新上传。',
+  transcribing: '重新生成将复用这段录音重新转写。',
+  summarizing: '重新生成将复用已保留的录音或转写结果继续生成纪要。',
+  saving: '重新生成将复用已生成的纪要内容重新保存。',
 }
 
 const initialState = {

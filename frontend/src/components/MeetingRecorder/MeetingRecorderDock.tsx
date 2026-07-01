@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
-import { CheckCircle2, ChevronDown, Loader2, Mic, Minus, Pause, Play, RotateCcw, Square, X } from 'lucide-react'
+import { ChevronDown, Loader2, Mic, Minus, Pause, Play, RotateCcw, Square, X } from 'lucide-react'
 import clsx from 'clsx'
 import { useNavigate } from 'react-router-dom'
 import { useAudioRecorder } from '../../hooks/useAudioRecorder'
@@ -83,6 +83,7 @@ export function MeetingRecorderDock() {
     confirmDiscardOpen,
     phase,
     elapsedSeconds,
+    recordedAudio,
     error,
     retryDescription,
     notification,
@@ -105,6 +106,8 @@ export function MeetingRecorderDock() {
   const [position, setPosition] = useState(getInitialPosition)
   const [hasCustomPosition, setHasCustomPosition] = useState(false)
   const dragOffsetRef = useRef<{ x: number; y: number } | null>(null)
+  const minimizedPointerRef = useRef<{ startX: number; startY: number; baseX: number; baseY: number; dragging: boolean } | null>(null)
+  const suppressRestoreRef = useRef(false)
   const startedAtRef = useRef<Date | null>(null)
   const finishInFlightRef = useRef(false)
 
@@ -132,11 +135,24 @@ export function MeetingRecorderDock() {
   useEffect(() => {
     const handleResize = () => setPosition((current) => clampPosition(current.x, current.y))
     const handlePointerMove = (event: PointerEvent) => {
+      if (minimizedPointerRef.current) {
+        const pointer = minimizedPointerRef.current
+        const dx = event.clientX - pointer.startX
+        const dy = event.clientY - pointer.startY
+        if (pointer.dragging || Math.hypot(dx, dy) > 6) {
+          pointer.dragging = true
+          suppressRestoreRef.current = true
+          setHasCustomPosition(true)
+          setPosition(clampPosition(pointer.baseX + dx, pointer.baseY + dy))
+        }
+        return
+      }
       if (!dragOffsetRef.current) return
       setPosition(clampPosition(event.clientX - dragOffsetRef.current.x, event.clientY - dragOffsetRef.current.y))
     }
     const handlePointerUp = () => {
       dragOffsetRef.current = null
+      minimizedPointerRef.current = null
     }
     window.addEventListener('resize', handleResize)
     window.addEventListener('pointermove', handlePointerMove)
@@ -158,6 +174,27 @@ export function MeetingRecorderDock() {
   const handlePanelPointerDown = (event: ReactPointerEvent<HTMLElement>) => {
     if ((event.target as HTMLElement).closest('button')) return
     beginDrag(event)
+  }
+
+  const handleMinimizedPointerDown = (event: ReactPointerEvent<HTMLElement>) => {
+    const current = hasCustomPosition ? position : getInitialPosition()
+    setPosition(current)
+    minimizedPointerRef.current = {
+      startX: event.clientX,
+      startY: event.clientY,
+      baseX: current.x,
+      baseY: current.y,
+      dragging: false,
+    }
+    suppressRestoreRef.current = false
+  }
+
+  const handleRestoreClick = () => {
+    if (suppressRestoreRef.current) {
+      suppressRestoreRef.current = false
+      return
+    }
+    restorePanel()
   }
 
   const handleOpenLauncher = () => {
@@ -197,9 +234,9 @@ export function MeetingRecorderDock() {
       const audioBlob = await recorder.stop()
       if (audioBlob.size === 0) throw new Error('microphone_no_audio')
       setRecordedAudio(audioBlob)
-      setPhase('stopped')
+      await generateFromAudio(audioBlob)
     } catch (stopError) {
-      failStage('uploading', formatRecorderFailure(stopError, recorderCopy))
+      failStage(stageFromError(stopError), formatRecorderFailure(stopError, recorderCopy))
     } finally {
       finishInFlightRef.current = false
     }
@@ -224,26 +261,6 @@ export function MeetingRecorderDock() {
     })
     setGeneratedNote({ title: note.title, markdown: note.content, taskId: response.task_id })
     complete(note.id)
-  }
-
-  const handleFinish = async () => {
-    if (finishInFlightRef.current) return
-    finishInFlightRef.current = true
-    try {
-      let audioBlob = useMeetingRecorderStore.getState().recordedAudio
-      if (!audioBlob && (phase === 'recording' || phase === 'paused')) {
-        setPhase('stopping')
-        audioBlob = await recorder.stop()
-        if (audioBlob.size === 0) throw new Error('microphone_no_audio')
-        setRecordedAudio(audioBlob)
-      }
-      if (!audioBlob) throw new Error(recorderCopy.noRecoverableAudio)
-      await generateFromAudio(audioBlob)
-    } catch (finishError) {
-      failStage(stageFromError(finishError), formatRecorderFailure(finishError, recorderCopy))
-    } finally {
-      finishInFlightRef.current = false
-    }
   }
 
   const handleRetry = async () => {
@@ -298,14 +315,22 @@ export function MeetingRecorderDock() {
     discardSession()
   }
 
+  const handleReRecord = () => {
+    recorder.reset()
+    resetSession()
+    setPosition(getInitialPosition())
+    setHasCustomPosition(false)
+    openPanel()
+    setPhase('idle')
+  }
+
   const elapsedLabel = formatElapsedTime(elapsedSeconds)
   const isProcessing = PROCESSING_PHASES.includes(phase)
   const canStart = phase === 'idle' || phase === 'failed'
   const canStop = phase === 'paused'
-  const canFinish = phase === 'stopped'
   const statusLabel = phaseLabel(phase, recorderCopy)
   const statusText = phase === 'failed' && error
-    ? `${error}${retryDescription ? ` · ${retryDescription}` : ''}`
+    ? `${recordedAudio ? `${recorderCopy.audioPreserved} · ` : ''}${error}${retryDescription ? ` · ${retryDescription}` : ''}`
     : notification?.kind === 'success'
       ? recorderCopy.completedNotice
       : isProcessing
@@ -333,15 +358,19 @@ export function MeetingRecorderDock() {
         <div
           className="fixed z-50 inline-flex h-12 items-center gap-3 rounded-full border border-white/80 bg-white px-3.5 pr-4 text-base font-medium text-[#111827] shadow-[0_8px_22px_rgba(15,23,42,0.14)]"
           style={dockedStyle}
+          onPointerDown={handleMinimizedPointerDown}
         >
           <span
             aria-label={recorderCopy.minimizedDragHandle}
             role="button"
             tabIndex={0}
-            onPointerDown={beginDrag}
+            onPointerDown={(event) => {
+              event.stopPropagation()
+              beginDrag(event)
+            }}
             className="-ml-1 h-6 w-2 cursor-grab rounded-full bg-white shadow-[0_0_0_1px_rgba(15,23,42,0.08),0_2px_8px_rgba(15,23,42,0.16)] transition-all hover:w-3 active:cursor-grabbing"
           />
-          <button type="button" onClick={restorePanel} aria-label={recorderCopy.restore} className="inline-flex items-center gap-3">
+          <button type="button" onClick={handleRestoreClick} aria-label={recorderCopy.restore} className="inline-flex items-center gap-3">
             <span className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-[#E5F7F5] text-[#0EA5A6]">
               <Mic className="h-5 w-5" strokeWidth={2.6} />
             </span>
@@ -392,32 +421,40 @@ export function MeetingRecorderDock() {
               </div>
             </div>
             <div className="ml-2 flex shrink-0 items-center gap-4">
+              {phase !== 'failed' ? (
+                <button
+                  type="button"
+                  onClick={canStart ? () => void handleStart() : phase === 'paused' ? handleResume : handlePause}
+                  disabled={isProcessing || phase === 'completed'}
+                  aria-label={canStart ? recorderCopy.start : phase === 'paused' ? recorderCopy.resume : recorderCopy.pause}
+                  className="group flex flex-col items-center gap-1 text-xs text-[#111827] disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  <span className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-gray-200 bg-white shadow-sm group-hover:bg-gray-50">
+                    {canStart || phase === 'paused' ? <Play className="h-5 w-5" fill="currentColor" /> : <Pause className="h-5 w-5" fill="currentColor" />}
+                  </span>
+                  {canStart ? recorderCopy.start : phase === 'paused' ? recorderCopy.resume : recorderCopy.pause}
+                </button>
+              ) : null}
               <button
                 type="button"
-                onClick={canStart ? () => void handleStart() : phase === 'paused' ? handleResume : handlePause}
-                disabled={isProcessing || phase === 'completed' || phase === 'stopped'}
-                aria-label={canStart ? recorderCopy.start : phase === 'paused' ? recorderCopy.resume : recorderCopy.pause}
-                className="group flex flex-col items-center gap-1 text-xs text-[#111827] disabled:cursor-not-allowed disabled:opacity-40"
-              >
-                <span className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-gray-200 bg-white shadow-sm group-hover:bg-gray-50">
-                  {canStart || phase === 'paused' ? <Play className="h-5 w-5" fill="currentColor" /> : <Pause className="h-5 w-5" fill="currentColor" />}
-                </span>
-                {canStart ? recorderCopy.start : phase === 'paused' ? recorderCopy.resume : recorderCopy.pause}
-              </button>
-              <button
-                type="button"
-                onClick={phase === 'failed' ? () => void handleRetry() : phase === 'stopped' ? () => void handleFinish() : () => void handleStop()}
-                disabled={isProcessing || (!canStop && !canFinish && phase !== 'failed')}
-                aria-label={phase === 'failed' ? recorderCopy.retry : phase === 'stopped' ? recorderCopy.finish : recorderCopy.stop}
+                onClick={phase === 'failed' ? () => void handleRetry() : () => void handleStop()}
+                disabled={isProcessing || (!canStop && phase !== 'failed')}
+                aria-label={phase === 'failed' ? recorderCopy.regenerate : recorderCopy.stop}
                 className="group flex flex-col items-center gap-1 text-xs text-[#111827] disabled:cursor-not-allowed disabled:opacity-40"
               >
                 <span className={clsx('inline-flex h-10 w-10 items-center justify-center rounded-full text-white shadow-[0_8px_16px_rgba(239,43,45,0.22)]', phase === 'failed' ? 'bg-[#111827]' : 'bg-[#EF2B2D] group-hover:bg-[#dc2626]')}>
-                  {isProcessing ? <Loader2 className="h-5 w-5 animate-spin" /> : phase === 'failed' ? <RotateCcw className="h-4 w-4" /> : phase === 'stopped' ? <CheckCircle2 className="h-5 w-5" /> : <Square className="h-4 w-4" fill="currentColor" />}
+                  {isProcessing ? <Loader2 className="h-5 w-5 animate-spin" /> : phase === 'failed' ? <RotateCcw className="h-4 w-4" /> : <Square className="h-4 w-4" fill="currentColor" />}
                 </span>
-                {phase === 'failed' ? recorderCopy.retry : phase === 'stopped' ? recorderCopy.finish : recorderCopy.stop}
+                {phase === 'failed' ? recorderCopy.regenerate : recorderCopy.stop}
               </button>
             </div>
           </div>
+
+          {phase === 'failed' ? (
+            <div className="mt-2 flex justify-end">
+              <button type="button" onClick={handleReRecord} className="text-xs font-medium text-[#6B7280] underline underline-offset-2" aria-label={recorderCopy.reRecord}>{recorderCopy.reRecord}</button>
+            </div>
+          ) : null}
 
           {notification?.kind === 'success' ? (
             <div className="mt-2 flex justify-end">
