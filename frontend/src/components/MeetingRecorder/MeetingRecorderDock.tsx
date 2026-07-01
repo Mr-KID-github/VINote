@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
-import { AlertCircle, CheckCircle2, ChevronDown, Loader2, Mic, Minus, Pause, Play, RotateCcw, Square } from 'lucide-react'
+import { CheckCircle2, ChevronDown, Loader2, Mic, Minus, Pause, Play, RotateCcw, Square, X } from 'lucide-react'
 import clsx from 'clsx'
 import { useNavigate } from 'react-router-dom'
 import { useAudioRecorder } from '../../hooks/useAudioRecorder'
@@ -12,7 +12,7 @@ import { useSTTProfileStore } from '../../stores/sttProfileStore'
 import { useTeamStore } from '../../stores/teamStore'
 
 const PANEL_WIDTH = 360
-const PANEL_HEIGHT = 220
+const PANEL_HEIGHT = 180
 const EDGE_PADDING = 20
 const WAVEFORM_BAR_HEIGHTS = [4, 7, 5, 14, 21, 10, 5, 7, 17, 24, 10, 16, 8, 11, 6, 5, 18, 22, 11, 8, 5, 4] as const
 const PROCESSING_PHASES: MeetingRecorderPhase[] = ['requesting', 'stopping', 'uploading', 'transcribing', 'summarizing', 'saving']
@@ -21,13 +21,8 @@ function getInitialPosition() {
   if (typeof window === 'undefined') return { x: EDGE_PADDING, y: EDGE_PADDING }
   return {
     x: Math.max(EDGE_PADDING, window.innerWidth - PANEL_WIDTH - EDGE_PADDING),
-    y: Math.max(EDGE_PADDING, window.innerHeight - PANEL_HEIGHT - 56),
+    y: Math.max(EDGE_PADDING, window.innerHeight - PANEL_HEIGHT - EDGE_PADDING),
   }
-}
-
-function getDockedPosition() {
-  if (typeof window === 'undefined') return { x: EDGE_PADDING, y: EDGE_PADDING }
-  return clampPosition(window.innerWidth - PANEL_WIDTH - EDGE_PADDING, window.innerHeight - PANEL_HEIGHT - 56)
 }
 
 function clampPosition(x: number, y: number) {
@@ -88,7 +83,6 @@ export function MeetingRecorderDock() {
     confirmDiscardOpen,
     phase,
     elapsedSeconds,
-    taskId,
     error,
     retryDescription,
     notification,
@@ -154,17 +148,27 @@ export function MeetingRecorderDock() {
     }
   }, [])
 
-  const handlePointerDown = (event: ReactPointerEvent<HTMLElement>) => {
-    if ((event.target as HTMLElement).closest('button')) return
+  const beginDrag = (event: ReactPointerEvent<HTMLElement>) => {
+    const current = hasCustomPosition ? position : getInitialPosition()
+    setPosition(current)
     setHasCustomPosition(true)
-    dragOffsetRef.current = { x: event.clientX - position.x, y: event.clientY - position.y }
+    dragOffsetRef.current = { x: event.clientX - current.x, y: event.clientY - current.y }
+  }
+
+  const handlePanelPointerDown = (event: ReactPointerEvent<HTMLElement>) => {
+    if ((event.target as HTMLElement).closest('button')) return
+    beginDrag(event)
+  }
+
+  const handleOpenLauncher = () => {
+    resetSession()
+    setPosition(getInitialPosition())
+    setHasCustomPosition(false)
+    openPanel()
+    setPhase('idle')
   }
 
   const handleStart = async () => {
-    resetSession()
-    setPosition(getDockedPosition())
-    setHasCustomPosition(false)
-    openPanel()
     startedAtRef.current = new Date()
     setPhase('requesting')
     try {
@@ -185,7 +189,7 @@ export function MeetingRecorderDock() {
     setPhase('recording')
   }
 
-  const handleFinish = async () => {
+  const handleStop = async () => {
     if (finishInFlightRef.current) return
     finishInFlightRef.current = true
     try {
@@ -193,24 +197,48 @@ export function MeetingRecorderDock() {
       const audioBlob = await recorder.stop()
       if (audioBlob.size === 0) throw new Error('microphone_no_audio')
       setRecordedAudio(audioBlob)
-      setPhase('uploading')
-      const response = await submitMeetingRecording({
-        audioBlob,
-        startedAt: startedAtRef.current || new Date(),
-        outputLanguage: language,
-        summaryMode: 'default',
-        modelProfileId: selectedModelProfileId || undefined,
-        sttProfileId: selectedSTTProfileId || undefined,
-      }, { onStage: setPhase })
-      setTaskId(response.task_id)
-      const note = await completeMeetingRecordingGeneration({
-        taskId: response.task_id,
-        workspace: currentWorkspace,
-        saveNote,
-        onStage: setPhase,
-      })
-      setGeneratedNote({ title: note.title, markdown: note.content, taskId: response.task_id })
-      complete(note.id)
+      setPhase('stopped')
+    } catch (stopError) {
+      failStage('uploading', formatRecorderFailure(stopError, recorderCopy))
+    } finally {
+      finishInFlightRef.current = false
+    }
+  }
+
+  const generateFromAudio = async (audioBlob: Blob) => {
+    setPhase('uploading')
+    const response = await submitMeetingRecording({
+      audioBlob,
+      startedAt: startedAtRef.current || new Date(),
+      outputLanguage: language,
+      summaryMode: 'default',
+      modelProfileId: selectedModelProfileId || undefined,
+      sttProfileId: selectedSTTProfileId || undefined,
+    }, { onStage: setPhase })
+    setTaskId(response.task_id)
+    const note = await completeMeetingRecordingGeneration({
+      taskId: response.task_id,
+      workspace: currentWorkspace,
+      saveNote,
+      onStage: setPhase,
+    })
+    setGeneratedNote({ title: note.title, markdown: note.content, taskId: response.task_id })
+    complete(note.id)
+  }
+
+  const handleFinish = async () => {
+    if (finishInFlightRef.current) return
+    finishInFlightRef.current = true
+    try {
+      let audioBlob = useMeetingRecorderStore.getState().recordedAudio
+      if (!audioBlob && (phase === 'recording' || phase === 'paused')) {
+        setPhase('stopping')
+        audioBlob = await recorder.stop()
+        if (audioBlob.size === 0) throw new Error('microphone_no_audio')
+        setRecordedAudio(audioBlob)
+      }
+      if (!audioBlob) throw new Error(recorderCopy.noRecoverableAudio)
+      await generateFromAudio(audioBlob)
     } catch (finishError) {
       failStage(stageFromError(finishError), formatRecorderFailure(finishError, recorderCopy))
     } finally {
@@ -250,23 +278,7 @@ export function MeetingRecorderDock() {
       if (!state.recordedAudio) {
         throw new Error(recorderCopy.noRecoverableAudio)
       }
-      setPhase('uploading')
-      const response = await submitMeetingRecording({
-        audioBlob: state.recordedAudio,
-        startedAt: startedAtRef.current || new Date(),
-        outputLanguage: language,
-        summaryMode: 'default',
-        modelProfileId: selectedModelProfileId || undefined,
-        sttProfileId: selectedSTTProfileId || undefined,
-      }, { onStage: setPhase })
-      setTaskId(response.task_id)
-      const note = await completeMeetingRecordingGeneration({
-        taskId: response.task_id,
-        workspace: currentWorkspace,
-        saveNote,
-        onStage: setPhase,
-      })
-      complete(note.id)
+      await generateFromAudio(state.recordedAudio)
     } catch (retryError) {
       failStage(stageFromError(retryError), formatRecorderFailure(retryError, recorderCopy))
     } finally {
@@ -288,8 +300,17 @@ export function MeetingRecorderDock() {
 
   const elapsedLabel = formatElapsedTime(elapsedSeconds)
   const isProcessing = PROCESSING_PHASES.includes(phase)
-  const canFinish = phase === 'recording' || phase === 'paused'
+  const canStart = phase === 'idle' || phase === 'failed'
+  const canStop = phase === 'recording' || phase === 'paused'
+  const canFinish = phase === 'stopped' || phase === 'recording' || phase === 'paused'
   const statusLabel = phaseLabel(phase, recorderCopy)
+  const statusText = phase === 'failed' && error
+    ? `${error}${retryDescription ? ` · ${retryDescription}` : ''}`
+    : notification?.kind === 'success'
+      ? recorderCopy.completedNotice
+      : isProcessing
+        ? `${recorderCopy.processingHint}: ${statusLabel}`
+        : statusLabel
   const dockedStyle = hasCustomPosition ? { left: position.x, top: position.y } : { right: EDGE_PADDING, bottom: EDGE_PADDING }
 
   return (
@@ -297,27 +318,9 @@ export function MeetingRecorderDock() {
       {!isPanelOpen ? (
         <button
           type="button"
-          onClick={() => void handleStart()}
+          onClick={handleOpenLauncher}
           aria-label={recorderCopy.openPanel}
-          className="fixed bottom-5 right-5 z-50 inline-flex h-12 items-center gap-3 rounded-full border border-white/80 bg-white px-3.5 pr-4 text-base font-medium text-[#111827] shadow-[0_8px_22px_rgba(15,23,42,0.14)] transition hover:-translate-y-0.5 hover:shadow-[0_12px_26px_rgba(15,23,42,0.16)]"
-        >
-          <span className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-[#E5F7F5] text-[#0EA5A6]">
-            <Mic className="h-5 w-5" strokeWidth={2.6} />
-          </span>
-          <span>{recorderCopy.title}</span>
-          <span className="h-2.5 w-2.5 rounded-full bg-[#EF2B2D] shadow-[0_0_0_4px_rgba(239,43,45,0.10)]" />
-          <span className="font-mono text-sm font-normal tabular-nums text-[#8B9099]">{elapsedLabel}</span>
-          <ChevronDown className="h-5 w-5 text-[#111827]" />
-        </button>
-      ) : null}
-
-      {isPanelOpen && isMinimized ? (
-        <button
-          type="button"
-          onClick={restorePanel}
-          aria-label={recorderCopy.restore}
-          className="fixed z-50 inline-flex h-[52px] w-[52px] items-center justify-center rounded-full border border-white/80 bg-white text-[#0EA5A6] shadow-[0_8px_20px_rgba(15,23,42,0.16)]"
-          style={dockedStyle}
+          className="fixed bottom-5 right-5 z-50 inline-flex h-[52px] w-[52px] items-center justify-center rounded-full border border-white/80 bg-white text-[#0EA5A6] shadow-[0_8px_20px_rgba(15,23,42,0.16)] transition hover:-translate-y-0.5 hover:shadow-[0_12px_26px_rgba(15,23,42,0.16)]"
         >
           <span className="absolute right-1 top-1 h-2.5 w-2.5 rounded-full bg-[#EF2B2D] shadow-[0_0_0_3px_rgba(239,43,45,0.12)]" />
           <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-[#F9FAFB] ring-1 ring-gray-100">
@@ -326,18 +329,52 @@ export function MeetingRecorderDock() {
         </button>
       ) : null}
 
+      {isPanelOpen && isMinimized ? (
+        <div
+          className="fixed z-50 inline-flex h-12 items-center gap-3 rounded-full border border-white/80 bg-white px-3.5 pr-4 text-base font-medium text-[#111827] shadow-[0_8px_22px_rgba(15,23,42,0.14)]"
+          style={dockedStyle}
+        >
+          <span
+            aria-label={recorderCopy.minimizedDragHandle}
+            role="button"
+            tabIndex={0}
+            onPointerDown={beginDrag}
+            className="-ml-1 h-6 w-2 cursor-grab rounded-full bg-white shadow-[0_0_0_1px_rgba(15,23,42,0.08),0_2px_8px_rgba(15,23,42,0.16)] transition-all hover:w-3 active:cursor-grabbing"
+          />
+          <button type="button" onClick={restorePanel} aria-label={recorderCopy.restore} className="inline-flex items-center gap-3">
+            <span className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-[#E5F7F5] text-[#0EA5A6]">
+              <Mic className="h-5 w-5" strokeWidth={2.6} />
+            </span>
+            <span>{recorderCopy.title}</span>
+            <span className="h-2.5 w-2.5 rounded-full bg-[#EF2B2D] shadow-[0_0_0_4px_rgba(239,43,45,0.10)]" />
+            <span className="font-mono text-sm font-normal tabular-nums text-[#8B9099]">{elapsedLabel}</span>
+            <ChevronDown className="h-5 w-5 text-[#111827]" />
+          </button>
+        </div>
+      ) : null}
+
       {isPanelOpen && !isMinimized ? (
         <section
           aria-label={recorderCopy.title}
           className="fixed z-50 w-[360px] max-w-[calc(100vw-24px)] rounded-2xl border border-white/80 bg-white px-4 py-3 text-[#111827] shadow-[0_12px_28px_rgba(15,23,42,0.14)]"
           style={dockedStyle}
         >
-          <div className="absolute right-3 top-2.5">
+          <div className="absolute right-3 top-2.5 flex items-center gap-2.5">
             <button type="button" onClick={minimizePanel} aria-label={recorderCopy.minimize} className="inline-flex h-6 w-6 items-center justify-center rounded-full text-[#8B9099] hover:bg-gray-100">
               <Minus className="h-4 w-4" />
             </button>
+            <button type="button" onClick={requestClose} aria-label={recorderCopy.close} className="inline-flex h-6 w-6 items-center justify-center rounded-full text-[#8B9099] hover:bg-gray-100">
+              <X className="h-4 w-4" />
+            </button>
           </div>
-          <div className="flex items-center gap-3" onPointerDown={handlePointerDown}>
+          <div className="flex items-center gap-3" onPointerDown={handlePanelPointerDown}>
+            <span
+              aria-label={recorderCopy.dragHandle}
+              role="button"
+              tabIndex={0}
+              onPointerDown={beginDrag}
+              className="-ml-1 h-10 w-2 shrink-0 cursor-grab rounded-full bg-white shadow-[0_0_0_1px_rgba(15,23,42,0.08),0_2px_8px_rgba(15,23,42,0.16)] transition-all hover:w-3 active:cursor-grabbing"
+            />
             <div className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[#E5F7F5] text-[#0EA5A6]">
               <Mic className="h-7 w-7" strokeWidth={2.6} />
             </div>
@@ -357,63 +394,43 @@ export function MeetingRecorderDock() {
                   />
                 ))}
               </div>
-              <div className="mt-1 text-[11px] text-[#8B9099]">{statusLabel}{taskId ? ` · ${taskId}` : ''}</div>
+              <div data-testid="meeting-recorder-status" className={clsx('mt-1 max-w-[150px] truncate text-[11px]', phase === 'failed' ? 'text-red-600' : 'text-[#8B9099]')} title={statusText}>
+                {statusText}
+              </div>
             </div>
-            <div className="ml-1 flex shrink-0 items-center gap-3">
+            <div className="ml-2 flex shrink-0 items-center gap-4">
               <button
                 type="button"
-                onClick={phase === 'paused' ? handleResume : handlePause}
-                disabled={phase !== 'recording' && phase !== 'paused'}
-                aria-label={phase === 'paused' ? recorderCopy.resume : recorderCopy.pause}
+                onClick={canStart ? () => void handleStart() : phase === 'paused' ? handleResume : handlePause}
+                disabled={isProcessing || phase === 'completed' || phase === 'stopped'}
+                aria-label={canStart ? recorderCopy.start : phase === 'paused' ? recorderCopy.resume : recorderCopy.pause}
                 className="group flex flex-col items-center gap-1 text-xs text-[#111827] disabled:cursor-not-allowed disabled:opacity-40"
               >
                 <span className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-gray-200 bg-white shadow-sm group-hover:bg-gray-50">
-                  {phase === 'paused' ? <Play className="h-5 w-5" fill="currentColor" /> : <Pause className="h-5 w-5" fill="currentColor" />}
+                  {canStart || phase === 'paused' ? <Play className="h-5 w-5" fill="currentColor" /> : <Pause className="h-5 w-5" fill="currentColor" />}
                 </span>
-                {phase === 'paused' ? recorderCopy.resume : recorderCopy.pause}
+                {canStart ? recorderCopy.start : phase === 'paused' ? recorderCopy.resume : recorderCopy.pause}
               </button>
               <button
                 type="button"
-                onClick={() => void handleFinish()}
-                disabled={!canFinish || finishInFlightRef.current}
-                aria-label={recorderCopy.end}
+                onClick={phase === 'failed' ? () => void handleRetry() : phase === 'stopped' ? () => void handleFinish() : () => void handleStop()}
+                disabled={isProcessing || (!canStop && !canFinish && phase !== 'failed')}
+                aria-label={phase === 'failed' ? recorderCopy.retry : phase === 'stopped' ? recorderCopy.finish : recorderCopy.stop}
                 className="group flex flex-col items-center gap-1 text-xs text-[#111827] disabled:cursor-not-allowed disabled:opacity-40"
               >
-                <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-[#EF2B2D] text-white shadow-[0_8px_16px_rgba(239,43,45,0.22)] group-hover:bg-[#dc2626]">
-                  {isProcessing ? <Loader2 className="h-5 w-5 animate-spin" /> : <Square className="h-4 w-4" fill="currentColor" />}
+                <span className={clsx('inline-flex h-10 w-10 items-center justify-center rounded-full text-white shadow-[0_8px_16px_rgba(239,43,45,0.22)]', phase === 'failed' ? 'bg-[#111827]' : 'bg-[#EF2B2D] group-hover:bg-[#dc2626]')}>
+                  {isProcessing ? <Loader2 className="h-5 w-5 animate-spin" /> : phase === 'failed' ? <RotateCcw className="h-4 w-4" /> : phase === 'stopped' ? <CheckCircle2 className="h-5 w-5" /> : <Square className="h-4 w-4" fill="currentColor" />}
                 </span>
-                {recorderCopy.end}
+                {phase === 'failed' ? recorderCopy.retry : phase === 'stopped' ? recorderCopy.finish : recorderCopy.stop}
               </button>
             </div>
           </div>
 
-          {isProcessing ? (
-            <div className="mt-4 flex items-center gap-2 rounded-xl bg-gray-50 px-3 py-2 text-sm text-[#6B7280]">
-              <Loader2 className="h-4 w-4 animate-spin" />
-              {recorderCopy.processingHint}: {statusLabel}
-            </div>
-          ) : null}
-          {phase === 'failed' && error ? (
-            <div className="mt-4 rounded-xl bg-red-50 px-3 py-2 text-sm text-red-700">
-              <div className="flex gap-2"><AlertCircle className="mt-0.5 h-4 w-4 shrink-0" /> <span>{error}</span></div>
-              {retryDescription ? <div className="mt-1 pl-6 text-xs">{retryDescription}</div> : null}
-            </div>
-          ) : null}
           {notification?.kind === 'success' ? (
-            <div className="mt-4 flex items-center justify-between rounded-xl bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
-              <span className="inline-flex items-center gap-2"><CheckCircle2 className="h-4 w-4" />{recorderCopy.completedNotice}</span>
-              <button type="button" onClick={handleViewNote} className="font-medium underline underline-offset-2" aria-label={recorderCopy.viewNote}>{recorderCopy.viewNote}</button>
+            <div className="mt-2 flex justify-end">
+              <button type="button" onClick={handleViewNote} className="text-xs font-medium text-emerald-700 underline underline-offset-2" aria-label={recorderCopy.viewNote}>{recorderCopy.viewNote}</button>
             </div>
           ) : null}
-
-          <div className="mt-4 flex items-center justify-between">
-            <button type="button" onClick={requestClose} className="text-sm text-[#6B7280] hover:text-[#111827]">{recorderCopy.close}</button>
-            {phase === 'failed' ? (
-              <button type="button" onClick={() => void handleRetry()} className="inline-flex items-center gap-2 rounded-full bg-[#111827] px-4 py-2 text-sm font-medium text-white">
-                <RotateCcw className="h-4 w-4" />{recorderCopy.retry}
-              </button>
-            ) : null}
-          </div>
         </section>
       ) : null}
 
