@@ -104,9 +104,7 @@ describe('MeetingRecorderDock', () => {
     expect(panel).toBeInTheDocument()
     expect(panel.className).toContain('w-[360px]')
     expect(panel).toHaveStyle({ right: '20px', bottom: '20px' })
-    const dragHandle = screen.getByLabelText('拖动会议录音浮窗')
-    expect(dragHandle).toBeInTheDocument()
-    expect(dragHandle.className).toContain('h-16')
+    expect(screen.queryByLabelText('拖动会议录音浮窗')).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: '关闭' })).toBeInTheDocument()
     expect(screen.getByText('准备就绪')).toBeInTheDocument()
 

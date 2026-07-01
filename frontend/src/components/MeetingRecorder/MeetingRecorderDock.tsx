@@ -340,13 +340,6 @@ export function MeetingRecorderDock() {
             </button>
           </div>
           <div className="flex items-center gap-3" onPointerDown={handlePanelPointerDown}>
-            <span
-              aria-label={recorderCopy.dragHandle}
-              role="button"
-              tabIndex={0}
-              onPointerDown={beginDrag}
-              className="-ml-1 h-16 w-2.5 shrink-0 cursor-grab rounded-full bg-white shadow-[0_0_0_1px_rgba(15,23,42,0.08),0_2px_8px_rgba(15,23,42,0.16)] transition-all hover:w-3 active:cursor-grabbing"
-            />
             <div className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[#E5F7F5] text-[#0EA5A6]">
               <Mic className="h-7 w-7" strokeWidth={2.6} />
             </div>
