@@ -67,5 +67,21 @@ class GenerateFromUploadRouterTest(unittest.TestCase):
         self.assertIn("Only audio uploads", response.json()["detail"])
 
 
+    def test_artifact_route_serves_media_after_task_dir_finalize_rename(self):
+        fake_note_service = SimpleNamespace(artifact_service=self.artifact_service)
+        task_dir = self.artifact_service.create_task_dir("task-artifact")
+        media_dir = task_dir / "media"
+        media_dir.mkdir()
+        (media_dir / "source_audio.webm").write_bytes(b"audio-after-rename")
+        self.artifact_service.update_status(task_dir, "uploaded", "Uploaded")
+        self.artifact_service.finalize_task_dir(task_dir, "Meeting", "task-artifact")
+
+        with patch.object(note, "_note_service", fake_note_service):
+            response = self.client.get("/api/task/task-artifact/artifacts/media/source_audio.webm")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.content, b"audio-after-rename")
+
+
 if __name__ == "__main__":
     unittest.main()

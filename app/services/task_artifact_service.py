@@ -57,10 +57,42 @@ class TaskArtifactService:
         cache_file = task_dir / "audio_meta.json"
         if not cache_file.exists():
             return None
-        return AudioDownloadResult(**json.loads(cache_file.read_text(encoding="utf-8")))
+        payload = json.loads(cache_file.read_text(encoding="utf-8"))
+        file_path = payload.get("file_path", "")
+        if file_path:
+            resolved_path = self.resolve_audio_path(task_dir, file_path)
+            payload["file_path"] = str(resolved_path)
+            persisted_path = self._path_for_audio_meta(task_dir, resolved_path)
+            if persisted_path != file_path:
+                stored_payload = dict(payload)
+                stored_payload["file_path"] = persisted_path
+                self.write_json(cache_file, stored_payload)
+        return AudioDownloadResult(**payload)
 
     def save_audio_meta(self, task_dir: Path, audio_meta: AudioDownloadResult) -> None:
-        self.write_json(task_dir / "audio_meta.json", asdict(audio_meta))
+        payload = asdict(audio_meta)
+        if payload.get("file_path"):
+            payload["file_path"] = self._path_for_audio_meta(task_dir, Path(payload["file_path"]))
+        self.write_json(task_dir / "audio_meta.json", payload)
+
+    def resolve_audio_path(self, task_dir: Path, file_path: str) -> Path:
+        path = Path(file_path)
+        if not path.is_absolute():
+            return (task_dir / path).resolve()
+        if path.exists():
+            return path
+        migrated_media_path = (task_dir / "media" / path.name).resolve()
+        if migrated_media_path.exists():
+            return migrated_media_path
+        return path
+
+    def _path_for_audio_meta(self, task_dir: Path, file_path: Path) -> str:
+        path = file_path.resolve()
+        task_root = task_dir.resolve()
+        try:
+            return str(path.relative_to(task_root)).replace("\\", "/")
+        except ValueError:
+            return str(path)
 
     def load_transcript(self, task_dir: Path) -> Optional[TranscriptResult]:
         cache_file = task_dir / "transcript.json"

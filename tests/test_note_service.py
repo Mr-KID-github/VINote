@@ -165,5 +165,38 @@ class NoteServiceTest(unittest.TestCase):
             self.assertTrue(Path(saved_result["output_path"]).exists())
 
 
+    def test_generate_from_file_uses_audio_path_after_finalize_rename(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            artifact_service = TaskArtifactService(Path(temp_dir) / "output")
+            task_dir = artifact_service.create_task_dir("task-upload")
+            media_dir = task_dir / "media"
+            media_dir.mkdir()
+            uploaded_audio = media_dir / "source_audio.webm"
+            uploaded_audio.write_bytes(b"same audio bytes")
+
+            transcription_service = FakeTranscriptionService()
+            llm_service = FakeLLMService()
+            service = NoteService(
+                transcription_service=transcription_service,
+                llm_service=llm_service,
+                artifact_service=artifact_service,
+                screenshot_service=FakeScreenshotService(),
+            )
+
+            result = service.generate_from_file(
+                file_path=str(uploaded_audio),
+                task_id="task-upload",
+                title="Uploaded Meeting",
+                output_language="zh-CN",
+            )
+
+            transcribed_path = Path(transcription_service.calls[0])
+            self.assertTrue(transcribed_path.exists())
+            self.assertEqual(transcribed_path.read_bytes(), b"same audio bytes")
+            self.assertFalse(uploaded_audio.exists())
+            self.assertEqual(transcribed_path.parent.name, "media")
+            self.assertEqual(transcribed_path.parent.parent, Path(result.output_dir))
+
+
 if __name__ == "__main__":
     unittest.main()
