@@ -106,13 +106,25 @@ describe('MeetingRecorderDock', () => {
     meetingGenerationMock.completeMeetingRecordingGeneration.mockResolvedValue({ id: 'note-1' })
   })
 
-  it('starts recording directly from the compact pill and opens the floating recorder', async () => {
+  it('starts recording from a compact web-sized pill and opens a lightweight recorder panel', async () => {
     renderDock()
 
-    await userEvent.click(screen.getByRole('button', { name: '开始会议录音' }))
+    const compactPill = screen.getByRole('button', { name: '开始会议录音' })
+    expect(compactPill.className).toContain('h-12')
+    expect(compactPill.className).toContain('gap-3')
+    expect(compactPill.className).not.toContain('h-[72px]')
+    expect(compactPill.className).not.toContain('text-[22px]')
 
+    await userEvent.click(compactPill)
+
+    const panel = screen.getByRole('region', { name: '会议录音' })
     expect(audioRecorderMock.start).toHaveBeenCalledTimes(1)
-    expect(screen.getByText('会议录音')).toBeInTheDocument()
+    expect(panel).toBeInTheDocument()
+    expect(panel.className).toContain('w-[360px]')
+    expect(panel.className).not.toContain('w-[520px]')
+    expect(panel).toHaveStyle({ right: '20px', bottom: '20px' })
+    expect(screen.getByText('00:00:00')).toBeInTheDocument()
+    expect(screen.getByLabelText('录音波形')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '暂停' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '结束' })).toBeInTheDocument()
   })
