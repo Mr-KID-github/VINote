@@ -18,13 +18,13 @@ export function Settings() {
   const { copy, language, setLanguage } = useI18n()
 
   return (
-    <div className="max-w-[1440px] mx-auto p-6 lg:p-8">
+    <div className="w-full p-6 lg:p-8">
       <h2 className="mb-6 text-2xl font-bold text-gray-900 dark:text-gray-100 lg:mb-8">{copy.settings.title}</h2>
 
-      <div className="flex flex-col gap-8 lg:flex-row">
+      <div className="flex flex-col gap-6 lg:flex-row">
         <SettingsNav activeTab={activeTab} onChange={setActiveTab} />
 
-        <div className="flex-1">
+        <div className="min-w-0 flex-1">
           {activeTab === 'profile' && <ProfileSettingsPanel email={user?.email} />}
           {activeTab === 'models' && (
             <div className="space-y-8">
