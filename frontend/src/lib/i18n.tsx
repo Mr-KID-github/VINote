@@ -134,6 +134,8 @@ const messages = {
       resume: 'Resume',
       end: 'End',
       retry: 'Retry',
+      regenerate: 'Regenerate',
+      reRecord: 'Record again',
       viewNote: 'View note',
       waveformLabel: 'Recording waveform',
       dragHandle: 'Drag meeting recording window',
@@ -153,6 +155,7 @@ const messages = {
       keepRecording: 'Keep recording',
       discard: 'Discard',
       noRecoverableAudio: 'No recoverable audio is available for retry.',
+      audioPreserved: 'Audio preserved',
       phases: {
         idle: 'Ready',
         requesting: 'Checking microphone permission',
@@ -354,6 +357,8 @@ const messages = {
       resume: '继续',
       end: '结束',
       retry: '重试',
+      regenerate: '重新生成',
+      reRecord: '重新录制',
       viewNote: '查看纪要',
       waveformLabel: '录音波形',
       dragHandle: '拖动会议录音浮窗',
@@ -373,6 +378,7 @@ const messages = {
       keepRecording: '继续保留',
       discard: '放弃录音',
       noRecoverableAudio: '没有可恢复的录音可用于重试。',
+      audioPreserved: '音频已保留',
       phases: {
         idle: '准备就绪',
         requesting: '检查麦克风权限',
