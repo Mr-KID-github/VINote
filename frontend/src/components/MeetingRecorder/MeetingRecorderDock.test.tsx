@@ -104,6 +104,8 @@ describe('MeetingRecorderDock', () => {
     renderDock()
 
     const idleLauncher = screen.getByRole('button', { name: '开始会议录音' })
+    expect(screen.getByTestId('meeting-recorder-idle-dot').className).toContain('bg-[#FCA5A5]')
+    expect(screen.getByTestId('meeting-recorder-idle-dot').className).not.toContain('bg-[#EF2B2D]')
     expect(idleLauncher.className).toContain('h-[52px]')
     expect(idleLauncher.className).toContain('w-[52px]')
     expect(idleLauncher.className).not.toContain('h-12')
@@ -123,6 +125,10 @@ describe('MeetingRecorderDock', () => {
     await userEvent.click(screen.getByRole('button', { name: '开始' }))
     expect(audioRecorderMock.start).toHaveBeenCalledTimes(1)
     expect(screen.getByText('录音中')).toBeInTheDocument()
+    expect(screen.getByTestId('meeting-recorder-expanded-dot').className).toContain('bg-[#EF2B2D]')
+    await userEvent.click(screen.getByRole('button', { name: '暂停' }))
+    expect(screen.getByTestId('meeting-recorder-expanded-dot').className).toContain('bg-[#FCA5A5]')
+    expect(screen.getByTestId('meeting-recorder-expanded-dot').className).not.toContain('bg-[#EF2B2D]')
   })
 
   it('requires pausing before the red Stop, then Stop directly generates the meeting note', async () => {
@@ -173,12 +179,14 @@ describe('MeetingRecorderDock', () => {
     renderDock()
 
     await userEvent.click(screen.getByRole('button', { name: '开始会议录音' }))
+    await userEvent.click(screen.getByRole('button', { name: '开始' }))
     await userEvent.click(screen.getByRole('button', { name: '最小化' }))
 
     const minimizedPill = screen.getByRole('button', { name: '恢复会议录音' })
     const minimizedShell = minimizedPill.parentElement
     expect(minimizedShell?.className).toContain('h-12')
     expect(minimizedShell?.className).toContain('gap-3')
+    expect(screen.getByTestId('meeting-recorder-minimized-dot').className).toContain('bg-[#EF2B2D]')
     const dragHandle = screen.getByLabelText('拖动已最小化的会议录音')
     expect(dragHandle).toBeInTheDocument()
 

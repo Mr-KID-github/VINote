@@ -62,6 +62,15 @@ function phaseLabel(phase: MeetingRecorderPhase, copy: ReturnType<typeof useI18n
   return copy.phases?.[phase] || phase
 }
 
+function recordingDotClass(phase: MeetingRecorderPhase, activeShadow: string) {
+  return clsx(
+    'rounded-full transition-colors',
+    phase === 'recording'
+      ? `bg-[#EF2B2D] ${activeShadow}`
+      : 'bg-[#FCA5A5] opacity-70 shadow-[0_0_0_3px_rgba(252,165,165,0.12)]',
+  )
+}
+
 export function MeetingRecorderDock() {
   const navigate = useNavigate()
   const recorder = useAudioRecorder()
@@ -347,7 +356,7 @@ export function MeetingRecorderDock() {
           aria-label={recorderCopy.openPanel}
           className="fixed bottom-5 right-5 z-50 inline-flex h-[52px] w-[52px] items-center justify-center rounded-full border border-white/80 bg-white text-[#0EA5A6] shadow-[0_8px_20px_rgba(15,23,42,0.16)] transition hover:-translate-y-0.5 hover:shadow-[0_12px_26px_rgba(15,23,42,0.16)]"
         >
-          <span className="absolute right-1 top-1 h-2.5 w-2.5 rounded-full bg-[#EF2B2D] shadow-[0_0_0_3px_rgba(239,43,45,0.12)]" />
+          <span data-testid="meeting-recorder-idle-dot" className={clsx('absolute right-1 top-1 h-2.5 w-2.5', recordingDotClass(phase, 'shadow-[0_0_0_3px_rgba(239,43,45,0.12)]'))} />
           <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-[#F9FAFB] ring-1 ring-gray-100">
             <Mic className="h-6 w-6" strokeWidth={2.6} />
           </span>
@@ -375,7 +384,7 @@ export function MeetingRecorderDock() {
               <Mic className="h-5 w-5" strokeWidth={2.6} />
             </span>
             <span>{recorderCopy.title}</span>
-            <span className="h-2.5 w-2.5 rounded-full bg-[#EF2B2D] shadow-[0_0_0_4px_rgba(239,43,45,0.10)]" />
+            <span data-testid="meeting-recorder-minimized-dot" className={clsx('h-2.5 w-2.5', recordingDotClass(phase, 'shadow-[0_0_0_4px_rgba(239,43,45,0.10)]'))} />
             <span className="font-mono text-sm font-normal tabular-nums text-[#8B9099]">{elapsedLabel}</span>
             <ChevronDown className="h-5 w-5 text-[#111827]" />
           </button>
@@ -404,7 +413,7 @@ export function MeetingRecorderDock() {
             <div className="min-w-0 flex-1">
               <div className="text-sm font-semibold leading-5">{recorderCopy.title}</div>
               <div className="mt-2 flex items-center gap-2.5">
-                <span className="h-2.5 w-2.5 rounded-full bg-[#EF2B2D] shadow-[0_0_0_4px_rgba(239,43,45,0.10)]" />
+                <span data-testid="meeting-recorder-expanded-dot" className={clsx('h-2.5 w-2.5', recordingDotClass(phase, 'shadow-[0_0_0_4px_rgba(239,43,45,0.10)]'))} />
                 <span className="font-mono text-xl font-semibold leading-none tabular-nums tracking-tight">{elapsedLabel}</span>
               </div>
               <div className="mt-3 flex h-6 items-center gap-0.5 overflow-hidden" aria-label={recorderCopy.waveformLabel}>
