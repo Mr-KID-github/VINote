@@ -13,6 +13,7 @@ interface NoteGridProps {
 export function NoteGrid({ notes, loading = false, emptyTitle, emptyBody, onOpen }: NoteGridProps) {
   const { copy, formatDate, locale } = useI18n()
   const isZh = locale.startsWith('zh')
+  const statusLabels: Record<string, string> = copy.notes.statusLabels || {}
 
   if (loading) {
     return (
@@ -43,9 +44,16 @@ export function NoteGrid({ notes, loading = false, emptyTitle, emptyBody, onOpen
         >
           <div className="flex items-start justify-between gap-3">
             <h3 className="font-semibold text-gray-900 dark:text-gray-100">{note.title}</h3>
-            <span className="shrink-0 rounded-full bg-gray-100 px-2 py-1 text-[11px] font-medium text-gray-600 dark:bg-[#161616] dark:text-gray-300">
-              {note.scope === 'team' ? note.teamName || (isZh ? '团队' : 'Team') : (isZh ? '个人' : 'Personal')}
-            </span>
+            <div className="flex shrink-0 items-center gap-2">
+              <span className="rounded-full bg-gray-100 px-2 py-1 text-[11px] font-medium text-gray-600 dark:bg-[#161616] dark:text-gray-300">
+                {note.scope === 'team' ? note.teamName || (isZh ? '团队' : 'Team') : (isZh ? '个人' : 'Personal')}
+              </span>
+              {note.status && note.status !== 'done' ? (
+                <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700 dark:bg-amber-900/30 dark:text-amber-200">
+                  {statusLabels[note.status] || note.status}
+                </span>
+              ) : null}
+            </div>
           </div>
           <p className="mt-3 line-clamp-4 text-sm text-gray-500 dark:text-gray-400">
             {note.content || copy.notes.noContent}
