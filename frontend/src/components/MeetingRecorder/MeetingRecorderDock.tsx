@@ -273,8 +273,8 @@ export function MeetingRecorderDock() {
   const elapsedLabel = formatElapsedTime(elapsedSeconds)
   const isProcessing = PROCESSING_PHASES.includes(phase)
   const canStart = phase === 'idle' || phase === 'failed'
-  const canStop = phase === 'recording' || phase === 'paused'
-  const canFinish = phase === 'stopped' || phase === 'recording' || phase === 'paused'
+  const canStop = phase === 'paused'
+  const canFinish = phase === 'stopped'
   const statusLabel = phaseLabel(phase, recorderCopy)
   const statusText = phase === 'failed' && error
     ? `${error}${retryDescription ? ` · ${retryDescription}` : ''}`
@@ -345,7 +345,7 @@ export function MeetingRecorderDock() {
               role="button"
               tabIndex={0}
               onPointerDown={beginDrag}
-              className="-ml-1 h-10 w-2 shrink-0 cursor-grab rounded-full bg-white shadow-[0_0_0_1px_rgba(15,23,42,0.08),0_2px_8px_rgba(15,23,42,0.16)] transition-all hover:w-3 active:cursor-grabbing"
+              className="-ml-1 h-16 w-2.5 shrink-0 cursor-grab rounded-full bg-white shadow-[0_0_0_1px_rgba(15,23,42,0.08),0_2px_8px_rgba(15,23,42,0.16)] transition-all hover:w-3 active:cursor-grabbing"
             />
             <div className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[#E5F7F5] text-[#0EA5A6]">
               <Mic className="h-7 w-7" strokeWidth={2.6} />
