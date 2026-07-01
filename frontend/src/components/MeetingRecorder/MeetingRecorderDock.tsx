@@ -8,25 +8,30 @@ import { useI18n } from '../../lib/i18n'
 import { useMeetingRecorderStore, type MeetingRecorderPhase, type MeetingRecorderStage } from '../../stores/meetingRecorderStore'
 import { useNoteLibraryStore } from '../../stores/noteLibraryStore'
 
-const PANEL_WIDTH = 520
-const PANEL_HEIGHT = 150
-const EDGE_PADDING = 24
-const WAVEFORM_BAR_HEIGHTS = [6, 10, 8, 22, 34, 16, 8, 10, 28, 40, 16, 26, 12, 18, 9, 8, 30, 36, 18, 12, 8, 7] as const
+const PANEL_WIDTH = 360
+const PANEL_HEIGHT = 220
+const EDGE_PADDING = 20
+const WAVEFORM_BAR_HEIGHTS = [4, 7, 5, 14, 21, 10, 5, 7, 17, 24, 10, 16, 8, 11, 6, 5, 18, 22, 11, 8, 5, 4] as const
 const PROCESSING_PHASES: MeetingRecorderPhase[] = ['requesting', 'stopping', 'uploading', 'transcribing', 'summarizing', 'saving']
 
 function getInitialPosition() {
   if (typeof window === 'undefined') return { x: EDGE_PADDING, y: EDGE_PADDING }
   return {
-    x: Math.max(EDGE_PADDING, Math.floor((window.innerWidth - PANEL_WIDTH) / 2)),
-    y: Math.max(EDGE_PADDING, window.innerHeight - PANEL_HEIGHT - 88),
+    x: Math.max(EDGE_PADDING, window.innerWidth - PANEL_WIDTH - EDGE_PADDING),
+    y: Math.max(EDGE_PADDING, window.innerHeight - PANEL_HEIGHT - 56),
   }
+}
+
+function getDockedPosition() {
+  if (typeof window === 'undefined') return { x: EDGE_PADDING, y: EDGE_PADDING }
+  return clampPosition(window.innerWidth - PANEL_WIDTH - EDGE_PADDING, window.innerHeight - PANEL_HEIGHT - 56)
 }
 
 function clampPosition(x: number, y: number) {
   if (typeof window === 'undefined') return { x, y }
   return {
     x: Math.min(Math.max(EDGE_PADDING, x), Math.max(EDGE_PADDING, window.innerWidth - PANEL_WIDTH - EDGE_PADDING)),
-    y: Math.min(Math.max(EDGE_PADDING, y), Math.max(EDGE_PADDING, window.innerHeight - 96)),
+    y: Math.min(Math.max(EDGE_PADDING, y), Math.max(EDGE_PADDING, window.innerHeight - PANEL_HEIGHT - EDGE_PADDING)),
   }
 }
 
@@ -92,6 +97,7 @@ export function MeetingRecorderDock() {
     resetSession,
   } = useMeetingRecorderStore()
   const [position, setPosition] = useState(getInitialPosition)
+  const [hasCustomPosition, setHasCustomPosition] = useState(false)
   const dragOffsetRef = useRef<{ x: number; y: number } | null>(null)
   const startedAtRef = useRef<Date | null>(null)
   const finishInFlightRef = useRef(false)
@@ -133,11 +139,14 @@ export function MeetingRecorderDock() {
 
   const handlePointerDown = (event: ReactPointerEvent<HTMLElement>) => {
     if ((event.target as HTMLElement).closest('button')) return
+    setHasCustomPosition(true)
     dragOffsetRef.current = { x: event.clientX - position.x, y: event.clientY - position.y }
   }
 
   const handleStart = async () => {
     resetSession()
+    setPosition(getDockedPosition())
+    setHasCustomPosition(false)
     openPanel()
     startedAtRef.current = new Date()
     setPhase('requesting')
@@ -246,6 +255,7 @@ export function MeetingRecorderDock() {
   const isProcessing = PROCESSING_PHASES.includes(phase)
   const canFinish = phase === 'recording' || phase === 'paused'
   const statusLabel = phaseLabel(phase, recorderCopy)
+  const dockedStyle = hasCustomPosition ? { left: position.x, top: position.y } : { right: EDGE_PADDING, bottom: EDGE_PADDING }
 
   return (
     <>
@@ -254,15 +264,15 @@ export function MeetingRecorderDock() {
           type="button"
           onClick={() => void handleStart()}
           aria-label={recorderCopy.openPanel}
-          className="fixed bottom-6 right-6 z-50 inline-flex h-[72px] items-center gap-6 rounded-full border border-white/80 bg-white px-6 pr-7 text-[22px] font-medium text-[#111827] shadow-[0_16px_38px_rgba(15,23,42,0.14)] transition hover:-translate-y-0.5 hover:shadow-[0_20px_44px_rgba(15,23,42,0.18)]"
+          className="fixed bottom-5 right-5 z-50 inline-flex h-12 items-center gap-3 rounded-full border border-white/80 bg-white px-3.5 pr-4 text-base font-medium text-[#111827] shadow-[0_8px_22px_rgba(15,23,42,0.14)] transition hover:-translate-y-0.5 hover:shadow-[0_12px_26px_rgba(15,23,42,0.16)]"
         >
-          <span className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-[#E5F7F5] text-[#0EA5A6]">
-            <Mic className="h-7 w-7" strokeWidth={2.6} />
+          <span className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-[#E5F7F5] text-[#0EA5A6]">
+            <Mic className="h-5 w-5" strokeWidth={2.6} />
           </span>
           <span>{recorderCopy.title}</span>
-          <span className="h-3 w-3 rounded-full bg-[#EF2B2D] shadow-[0_0_0_5px_rgba(239,43,45,0.10)]" />
-          <span className="font-mono text-[22px] font-normal tabular-nums text-[#8B9099]">{elapsedLabel}</span>
-          <ChevronDown className="h-7 w-7 text-[#111827]" />
+          <span className="h-2.5 w-2.5 rounded-full bg-[#EF2B2D] shadow-[0_0_0_4px_rgba(239,43,45,0.10)]" />
+          <span className="font-mono text-sm font-normal tabular-nums text-[#8B9099]">{elapsedLabel}</span>
+          <ChevronDown className="h-5 w-5 text-[#111827]" />
         </button>
       ) : null}
 
@@ -271,12 +281,12 @@ export function MeetingRecorderDock() {
           type="button"
           onClick={restorePanel}
           aria-label={recorderCopy.restore}
-          className="fixed z-50 inline-flex h-[76px] w-[76px] items-center justify-center rounded-full border border-white/80 bg-white text-[#0EA5A6] shadow-[0_14px_32px_rgba(15,23,42,0.16)]"
-          style={{ left: position.x, top: position.y }}
+          className="fixed z-50 inline-flex h-[52px] w-[52px] items-center justify-center rounded-full border border-white/80 bg-white text-[#0EA5A6] shadow-[0_8px_20px_rgba(15,23,42,0.16)]"
+          style={dockedStyle}
         >
-          <span className="absolute right-2 top-2 h-3.5 w-3.5 rounded-full bg-[#EF2B2D] shadow-[0_0_0_4px_rgba(239,43,45,0.12)]" />
-          <span className="inline-flex h-[58px] w-[58px] items-center justify-center rounded-full bg-[#F9FAFB] ring-1 ring-gray-100">
-            <Mic className="h-9 w-9" strokeWidth={2.6} />
+          <span className="absolute right-1 top-1 h-2.5 w-2.5 rounded-full bg-[#EF2B2D] shadow-[0_0_0_3px_rgba(239,43,45,0.12)]" />
+          <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-[#F9FAFB] ring-1 ring-gray-100">
+            <Mic className="h-6 w-6" strokeWidth={2.6} />
           </span>
         </button>
       ) : null}
@@ -284,46 +294,46 @@ export function MeetingRecorderDock() {
       {isPanelOpen && !isMinimized ? (
         <section
           aria-label={recorderCopy.title}
-          className="fixed z-50 w-[520px] max-w-[calc(100vw-32px)] rounded-[18px] border border-white/80 bg-white px-6 py-5 text-[#111827] shadow-[0_18px_44px_rgba(15,23,42,0.14)]"
-          style={{ left: position.x, top: position.y }}
+          className="fixed z-50 w-[360px] max-w-[calc(100vw-24px)] rounded-2xl border border-white/80 bg-white px-4 py-3 text-[#111827] shadow-[0_12px_28px_rgba(15,23,42,0.14)]"
+          style={dockedStyle}
         >
-          <div className="absolute right-4 top-3">
-            <button type="button" onClick={minimizePanel} aria-label={recorderCopy.minimize} className="inline-flex h-7 w-7 items-center justify-center rounded-full text-[#8B9099] hover:bg-gray-100">
-              <Minus className="h-5 w-5" />
+          <div className="absolute right-3 top-2.5">
+            <button type="button" onClick={minimizePanel} aria-label={recorderCopy.minimize} className="inline-flex h-6 w-6 items-center justify-center rounded-full text-[#8B9099] hover:bg-gray-100">
+              <Minus className="h-4 w-4" />
             </button>
           </div>
-          <div className="flex items-center gap-6" onPointerDown={handlePointerDown}>
-            <div className="inline-flex h-[76px] w-[76px] shrink-0 items-center justify-center rounded-full bg-[#E5F7F5] text-[#0EA5A6]">
-              <Mic className="h-12 w-12" strokeWidth={2.6} />
+          <div className="flex items-center gap-3" onPointerDown={handlePointerDown}>
+            <div className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[#E5F7F5] text-[#0EA5A6]">
+              <Mic className="h-7 w-7" strokeWidth={2.6} />
             </div>
-            <div className="h-[96px] w-px bg-gray-200" />
+            <div className="h-16 w-px bg-gray-200" />
             <div className="min-w-0 flex-1">
-              <div className="text-[20px] font-medium leading-6">{recorderCopy.title}</div>
-              <div className="mt-4 flex items-center gap-4">
-                <span className="h-3 w-3 rounded-full bg-[#EF2B2D] shadow-[0_0_0_5px_rgba(239,43,45,0.10)]" />
-                <span className="font-mono text-[30px] font-semibold leading-none tabular-nums tracking-tight">{elapsedLabel}</span>
+              <div className="text-sm font-semibold leading-5">{recorderCopy.title}</div>
+              <div className="mt-2 flex items-center gap-2.5">
+                <span className="h-2.5 w-2.5 rounded-full bg-[#EF2B2D] shadow-[0_0_0_4px_rgba(239,43,45,0.10)]" />
+                <span className="font-mono text-xl font-semibold leading-none tabular-nums tracking-tight">{elapsedLabel}</span>
               </div>
-              <div className="mt-5 flex h-10 items-center gap-1 overflow-hidden" aria-label={recorderCopy.waveformLabel}>
+              <div className="mt-3 flex h-6 items-center gap-0.5 overflow-hidden" aria-label={recorderCopy.waveformLabel}>
                 {WAVEFORM_BAR_HEIGHTS.map((height, index) => (
                   <span
                     key={`wave-${index}`}
-                    className={clsx('w-1 rounded-full bg-[#0EA5A6]', phase === 'recording' ? 'animate-pulse' : 'opacity-45')}
+                    className={clsx('w-0.5 rounded-full bg-[#0EA5A6]', phase === 'recording' ? 'animate-pulse' : 'opacity-45')}
                     style={{ height, animationDelay: `${index * 60}ms` }}
                   />
                 ))}
               </div>
-              <div className="mt-2 text-xs text-[#8B9099]">{statusLabel}{taskId ? ` · ${taskId}` : ''}</div>
+              <div className="mt-1 text-[11px] text-[#8B9099]">{statusLabel}{taskId ? ` · ${taskId}` : ''}</div>
             </div>
-            <div className="ml-2 flex shrink-0 items-center gap-6">
+            <div className="ml-1 flex shrink-0 items-center gap-3">
               <button
                 type="button"
                 onClick={phase === 'paused' ? handleResume : handlePause}
                 disabled={phase !== 'recording' && phase !== 'paused'}
                 aria-label={phase === 'paused' ? recorderCopy.resume : recorderCopy.pause}
-                className="group flex flex-col items-center gap-2 text-[15px] text-[#111827] disabled:cursor-not-allowed disabled:opacity-40"
+                className="group flex flex-col items-center gap-1 text-xs text-[#111827] disabled:cursor-not-allowed disabled:opacity-40"
               >
-                <span className="inline-flex h-[58px] w-[58px] items-center justify-center rounded-full border border-gray-200 bg-white shadow-sm group-hover:bg-gray-50">
-                  {phase === 'paused' ? <Play className="h-7 w-7" fill="currentColor" /> : <Pause className="h-7 w-7" fill="currentColor" />}
+                <span className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-gray-200 bg-white shadow-sm group-hover:bg-gray-50">
+                  {phase === 'paused' ? <Play className="h-5 w-5" fill="currentColor" /> : <Pause className="h-5 w-5" fill="currentColor" />}
                 </span>
                 {phase === 'paused' ? recorderCopy.resume : recorderCopy.pause}
               </button>
@@ -332,10 +342,10 @@ export function MeetingRecorderDock() {
                 onClick={() => void handleFinish()}
                 disabled={!canFinish || finishInFlightRef.current}
                 aria-label={recorderCopy.end}
-                className="group flex flex-col items-center gap-2 text-[15px] text-[#111827] disabled:cursor-not-allowed disabled:opacity-40"
+                className="group flex flex-col items-center gap-1 text-xs text-[#111827] disabled:cursor-not-allowed disabled:opacity-40"
               >
-                <span className="inline-flex h-[58px] w-[58px] items-center justify-center rounded-full bg-[#EF2B2D] text-white shadow-[0_10px_20px_rgba(239,43,45,0.22)] group-hover:bg-[#dc2626]">
-                  {isProcessing ? <Loader2 className="h-7 w-7 animate-spin" /> : <Square className="h-6 w-6" fill="currentColor" />}
+                <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-[#EF2B2D] text-white shadow-[0_8px_16px_rgba(239,43,45,0.22)] group-hover:bg-[#dc2626]">
+                  {isProcessing ? <Loader2 className="h-5 w-5 animate-spin" /> : <Square className="h-4 w-4" fill="currentColor" />}
                 </span>
                 {recorderCopy.end}
               </button>
