@@ -104,7 +104,9 @@ describe('MeetingRecorderDock', () => {
     expect(panel).toBeInTheDocument()
     expect(panel.className).toContain('w-[360px]')
     expect(panel).toHaveStyle({ right: '20px', bottom: '20px' })
-    expect(screen.getByLabelText('拖动会议录音浮窗')).toBeInTheDocument()
+    const dragHandle = screen.getByLabelText('拖动会议录音浮窗')
+    expect(dragHandle).toBeInTheDocument()
+    expect(dragHandle.className).toContain('h-16')
     expect(screen.getByRole('button', { name: '关闭' })).toBeInTheDocument()
     expect(screen.getByText('准备就绪')).toBeInTheDocument()
 
@@ -113,11 +115,16 @@ describe('MeetingRecorderDock', () => {
     expect(screen.getByText('录音中')).toBeInTheDocument()
   })
 
-  it('uses Stop to keep recorded audio and Finish to generate the meeting note', async () => {
+  it('requires pausing before Stop, then Finish generates the meeting note', async () => {
     renderDock()
 
     await userEvent.click(screen.getByRole('button', { name: '开始会议录音' }))
     await userEvent.click(screen.getByRole('button', { name: '开始' }))
+
+    expect(screen.getByRole('button', { name: '停止' })).toBeDisabled()
+    await userEvent.click(screen.getByRole('button', { name: '暂停' }))
+    expect(audioRecorderMock.pause).toHaveBeenCalledTimes(1)
+
     await userEvent.click(screen.getByRole('button', { name: '停止' }))
 
     expect(audioRecorderMock.stop).toHaveBeenCalledTimes(1)
@@ -226,6 +233,7 @@ describe('MeetingRecorderDock', () => {
 
     await userEvent.click(screen.getByRole('button', { name: '开始会议录音' }))
     await userEvent.click(screen.getByRole('button', { name: '开始' }))
+    await userEvent.click(screen.getByRole('button', { name: '暂停' }))
     await userEvent.click(screen.getByRole('button', { name: '停止' }))
     await userEvent.click(screen.getByRole('button', { name: '完成' }))
 
