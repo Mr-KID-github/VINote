@@ -55,8 +55,9 @@ interface NoteLibraryState {
     taskId?: string,
     workspace?: WorkspaceSelection,
     sourceType?: string,
+    status?: string,
   ) => Promise<NoteRecord | null>
-  updateNote: (id: string, title: string, content: string) => Promise<NoteRecord | null>
+  updateNote: (id: string, title: string, content: string, status?: string) => Promise<NoteRecord | null>
   deleteNote: (id: string) => Promise<void>
   createShareLink: (id: string) => Promise<NoteShareRecord | null>
   getShareLink: (id: string) => Promise<NoteShareRecord | null>
@@ -151,7 +152,7 @@ export const useNoteLibraryStore = create<NoteLibraryState>((set, get) => ({
       return null
     }
   },
-  saveNote: async (title, content, videoUrl, taskId, workspace, sourceType) => {
+  saveNote: async (title, content, videoUrl, taskId, workspace, sourceType, status = 'done') => {
     try {
       const normalizedTitle = title.trim() || 'Untitled note'
       const currentWorkspace = workspace ?? { scope: 'personal' as const }
@@ -164,7 +165,7 @@ export const useNoteLibraryStore = create<NoteLibraryState>((set, get) => ({
           video_url: videoUrl || null,
           task_id: taskId || null,
           source_type: sourceType || (videoUrl ? 'video' : 'file'),
-          status: 'done',
+          status,
           scope: currentWorkspace.scope,
           team_id: currentWorkspace.scope === 'team' ? currentWorkspace.teamId : null,
         }),
@@ -183,13 +184,13 @@ export const useNoteLibraryStore = create<NoteLibraryState>((set, get) => ({
       return null
     }
   },
-  updateNote: async (id, title, content) => {
+  updateNote: async (id, title, content, status) => {
     try {
       const normalizedTitle = title.trim() || 'Untitled note'
       const data = await apiJson<NoteRow>(`/api/notes/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title: normalizedTitle, content }),
+        body: JSON.stringify({ title: normalizedTitle, content, ...(status ? { status } : {}) }),
       })
       const note = mapRow(data)
       set((state) => ({

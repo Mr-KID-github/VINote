@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { requestDesktopMicrophoneAccess } from '../lib/desktopMicrophonePermission'
+import { checkMicrophoneReadiness, mapMicrophoneError } from '../lib/microphonePermission'
 
 type AudioRecorderStatus = 'idle' | 'requesting' | 'recording' | 'paused' | 'stopped' | 'failed'
 
@@ -75,7 +75,7 @@ export function useAudioRecorder() {
       try {
         recorder.stop()
       } catch {
-        // Ignore stop races during cleanup; the stream is also stopped below.
+        // Ignore cleanup race.
       }
     }
     recorderRef.current = null
@@ -96,7 +96,7 @@ export function useAudioRecorder() {
 
   const start = useCallback(async () => {
     if (!isSupported) {
-      const message = 'This browser does not support audio recording.'
+      const message = 'microphone_unsupported'
       setError(message)
       setStatus('failed')
       throw new Error(message)
@@ -105,11 +105,18 @@ export function useAudioRecorder() {
     reset()
     setStatus('requesting')
 
+    const readiness = await checkMicrophoneReadiness()
+    if (!readiness.ok) {
+      const message = `microphone_${readiness.reason}`
+      setError(message)
+      setStatus('failed')
+      throw new Error(message)
+    }
+
     try {
-      await requestDesktopMicrophoneAccess()
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
       if (stream.getAudioTracks().length === 0) {
-        throw new Error('microphone_no_audio_track')
+        throw new Error('microphone_no-device')
       }
       const mimeType = getPreferredAudioMimeType()
       const recorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream)
@@ -125,7 +132,7 @@ export function useAudioRecorder() {
         }
       }
       recorder.onerror = () => {
-        setError('Audio recording failed.')
+        setError('audio_recording_failed')
         setStatus('failed')
       }
 
@@ -136,7 +143,8 @@ export function useAudioRecorder() {
       startTimer()
     } catch (recordingError) {
       cleanupStream()
-      const message = recordingError instanceof Error ? recordingError.message : 'Failed to start audio recording.'
+      const reason = mapMicrophoneError(recordingError)
+      const message = reason === 'unknown' && recordingError instanceof Error ? recordingError.message : `microphone_${reason}`
       setError(message)
       setStatus('failed')
       throw new Error(message)
@@ -145,10 +153,7 @@ export function useAudioRecorder() {
 
   const pause = useCallback(() => {
     const recorder = recorderRef.current
-    if (!recorder || recorder.state !== 'recording') {
-      return
-    }
-
+    if (!recorder || recorder.state !== 'recording') return
     recorder.pause()
     captureElapsed()
     clearTimer()
@@ -157,10 +162,7 @@ export function useAudioRecorder() {
 
   const resume = useCallback(() => {
     const recorder = recorderRef.current
-    if (!recorder || recorder.state !== 'paused') {
-      return
-    }
-
+    if (!recorder || recorder.state !== 'paused') return
     recorder.resume()
     setStatus('recording')
     startTimer()
@@ -178,18 +180,14 @@ export function useAudioRecorder() {
     return new Promise<Blob>((resolve, reject) => {
       let settled = false
       let fallbackTimer: ReturnType<typeof window.setTimeout> | null = null
-
       const clearFallbackTimer = () => {
         if (fallbackTimer) {
           window.clearTimeout(fallbackTimer)
           fallbackTimer = null
         }
       }
-
       const finalize = () => {
-        if (settled) {
-          return
-        }
+        if (settled) return
         settled = true
         clearFallbackTimer()
         const blob = new Blob(chunksRef.current, { type: mimeTypeRef.current || recorder.mimeType || 'audio/webm' })
@@ -200,11 +198,8 @@ export function useAudioRecorder() {
         setStatus('stopped')
         resolve(blob)
       }
-
-      const fail = (message = 'Audio recording failed.') => {
-        if (settled) {
-          return
-        }
+      const fail = (message = 'audio_recording_failed') => {
+        if (settled) return
         settled = true
         clearFallbackTimer()
         cleanupStream()
@@ -213,22 +208,18 @@ export function useAudioRecorder() {
       }
 
       recorder.onstop = finalize
-      recorder.onerror = () => {
-        fail()
-      }
-
+      recorder.onerror = () => fail()
       fallbackTimer = window.setTimeout(finalize, STOP_FALLBACK_MS)
 
       try {
         recorder.requestData()
       } catch {
-        // Some WebViews throw if data is not currently available; stop can still finalize the recording.
+        // Stop can still finalize the current chunks.
       }
-
       try {
         recorder.stop()
       } catch (stopError) {
-        fail(stopError instanceof Error ? stopError.message : 'Failed to stop audio recording.')
+        fail(stopError instanceof Error ? stopError.message : 'audio_recording_failed')
       }
     })
   }, [captureElapsed, cleanupStream, clearTimer])
@@ -239,15 +230,5 @@ export function useAudioRecorder() {
     cleanupStream()
   }, [cleanupStream, clearTimer, stopActiveRecorder])
 
-  return {
-    status,
-    elapsedSeconds,
-    error,
-    isSupported,
-    start,
-    pause,
-    resume,
-    stop,
-    reset,
-  }
+  return { status, elapsedSeconds, error, isSupported, start, pause, resume, stop, reset }
 }

@@ -30,8 +30,8 @@ export function MainLayout() {
         <main className="stealth-scroll flex-1 overflow-auto bg-white text-gray-900 dark:bg-[#191919] dark:text-gray-100">
           <Outlet />
         </main>
+        <MeetingRecorderDock />
       </div>
-      <MeetingRecorderDock />
     </div>
   )
 }
