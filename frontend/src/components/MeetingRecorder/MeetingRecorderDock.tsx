@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
-import { createPortal } from 'react-dom'
-import { ChevronDown, ExternalLink, Loader2, Mic, Minus, Pause, Play, RotateCcw, Square, X } from 'lucide-react'
+import { ChevronDown, Loader2, Mic, Minus, Pause, Play, RotateCcw, Square, X } from 'lucide-react'
 import clsx from 'clsx'
 import { useNavigate } from 'react-router-dom'
 import { useAudioRecorder } from '../../hooks/useAudioRecorder'
@@ -14,15 +13,9 @@ import { useTeamStore } from '../../stores/teamStore'
 
 const PANEL_WIDTH = 360
 const PANEL_HEIGHT = 180
-const POPOUT_WIDTH = 390
-const POPOUT_HEIGHT = 230
 const EDGE_PADDING = 20
 const WAVEFORM_BAR_HEIGHTS = [4, 7, 5, 14, 21, 10, 5, 7, 17, 24, 10, 16, 8, 11, 6, 5, 18, 22, 11, 8, 5, 4] as const
 const PROCESSING_PHASES: MeetingRecorderPhase[] = ['requesting', 'stopping', 'uploading', 'transcribing', 'summarizing', 'saving']
-
-type DocumentPictureInPictureApi = {
-  requestWindow: (options?: { width?: number; height?: number }) => Promise<Window>
-}
 
 function getInitialPosition() {
   if (typeof window === 'undefined') return { x: EDGE_PADDING, y: EDGE_PADDING }
@@ -38,45 +31,6 @@ function clampPosition(x: number, y: number) {
     x: Math.min(Math.max(EDGE_PADDING, x), Math.max(EDGE_PADDING, window.innerWidth - PANEL_WIDTH - EDGE_PADDING)),
     y: Math.min(Math.max(EDGE_PADDING, y), Math.max(EDGE_PADDING, window.innerHeight - PANEL_HEIGHT - EDGE_PADDING)),
   }
-}
-
-function copyDocumentStyles(targetDocument: Document) {
-  document.querySelectorAll('link[rel="stylesheet"], style').forEach((node) => {
-    targetDocument.head.appendChild(node.cloneNode(true))
-  })
-}
-
-function prepareDetachedRecorderWindow(targetWindow: Window, title: string) {
-  const targetDocument = targetWindow.document
-  targetDocument.title = title
-  targetDocument.body.innerHTML = ''
-  targetDocument.body.style.margin = '0'
-  targetDocument.body.style.background = 'transparent'
-  targetDocument.body.style.overflow = 'hidden'
-  copyDocumentStyles(targetDocument)
-  const root = targetDocument.createElement('div')
-  root.id = 'vinote-meeting-recorder-popout-root'
-  targetDocument.body.appendChild(root)
-  return root
-}
-
-async function requestDetachedRecorderWindow() {
-  const pip = (window as Window & { documentPictureInPicture?: DocumentPictureInPictureApi }).documentPictureInPicture
-  if (pip?.requestWindow) {
-    try {
-      return await pip.requestWindow({ width: POPOUT_WIDTH, height: POPOUT_HEIGHT })
-    } catch {
-      // Fall back to a regular popup when Document Picture-in-Picture is unavailable or denied.
-    }
-  }
-
-  const left = Math.max(0, window.screenX + window.outerWidth - POPOUT_WIDTH - EDGE_PADDING)
-  const top = Math.max(0, window.screenY + EDGE_PADDING)
-  return window.open(
-    '',
-    'vinote-meeting-recorder',
-    `popup=yes,width=${POPOUT_WIDTH},height=${POPOUT_HEIGHT},left=${left},top=${top},resizable=yes,scrollbars=no`,
-  )
 }
 
 function formatElapsedTime(totalSeconds: number) {
@@ -197,8 +151,6 @@ export function MeetingRecorderDock() {
   } = useMeetingRecorderStore()
   const [position, setPosition] = useState(getInitialPosition)
   const [hasCustomPosition, setHasCustomPosition] = useState(false)
-  const [detachedContainer, setDetachedContainer] = useState<HTMLElement | null>(null)
-  const detachedWindowRef = useRef<Window | null>(null)
   const dragOffsetRef = useRef<{ x: number; y: number } | null>(null)
   const minimizedPointerRef = useRef<{ startX: number; startY: number; baseX: number; baseY: number; dragging: boolean } | null>(null)
   const suppressRestoreRef = useRef(false)
@@ -215,12 +167,6 @@ export function MeetingRecorderDock() {
   useEffect(() => {
     setElapsedSeconds(recorder.elapsedSeconds)
   }, [recorder.elapsedSeconds, setElapsedSeconds])
-
-  useEffect(() => () => {
-    if (detachedWindowRef.current && !detachedWindowRef.current.closed) {
-      detachedWindowRef.current.close()
-    }
-  }, [])
 
   useEffect(() => {
     const beforeUnload = (event: BeforeUnloadEvent) => {
@@ -297,25 +243,6 @@ export function MeetingRecorderDock() {
       return
     }
     restorePanel()
-  }
-
-  const handleDetachWindow = async () => {
-    if (detachedWindowRef.current && !detachedWindowRef.current.closed) {
-      detachedWindowRef.current.focus()
-      return
-    }
-
-    const targetWindow = await requestDetachedRecorderWindow()
-    if (!targetWindow) return
-
-    const root = prepareDetachedRecorderWindow(targetWindow, recorderCopy.popoutTitle)
-    detachedWindowRef.current = targetWindow
-    setDetachedContainer(root)
-    targetWindow.addEventListener('beforeunload', () => {
-      detachedWindowRef.current = null
-      setDetachedContainer(null)
-    })
-    targetWindow.focus()
   }
 
   const handleOpenLauncher = () => {
@@ -514,7 +441,7 @@ export function MeetingRecorderDock() {
         ? `${recorderCopy.processingHint}: ${statusLabel}`
         : statusLabel
   const dockedStyle = hasCustomPosition ? { left: position.x, top: position.y } : { right: EDGE_PADDING, bottom: EDGE_PADDING }
-  const dockContent = (
+  return (
     <>
       {!isPanelOpen ? (
         <button
@@ -565,9 +492,6 @@ export function MeetingRecorderDock() {
           style={dockedStyle}
         >
           <div className="absolute right-3 top-2.5 flex items-center gap-2.5">
-            <button type="button" onClick={() => void handleDetachWindow()} aria-label={recorderCopy.popout} className="inline-flex h-6 w-6 items-center justify-center rounded-full text-[#8B9099] hover:bg-gray-100">
-              <ExternalLink className="h-3.5 w-3.5" />
-            </button>
             <button type="button" onClick={minimizePanel} aria-label={recorderCopy.minimize} className="inline-flex h-6 w-6 items-center justify-center rounded-full text-[#8B9099] hover:bg-gray-100">
               <Minus className="h-4 w-4" />
             </button>
@@ -657,6 +581,4 @@ export function MeetingRecorderDock() {
       ) : null}
     </>
   )
-
-  return detachedContainer ? createPortal(dockContent, detachedContainer) : dockContent
 }

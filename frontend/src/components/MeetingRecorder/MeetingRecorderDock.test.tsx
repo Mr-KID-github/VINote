@@ -87,10 +87,7 @@ function renderDock() {
 }
 
 describe('MeetingRecorderDock', () => {
-  const originalOpen = window.open
-
   beforeEach(() => {
-    window.open = originalOpen
     vi.clearAllMocks()
     useMeetingRecorderStore.getState().resetSession()
     audioRecorderMock.start.mockResolvedValue(undefined)
@@ -125,6 +122,7 @@ describe('MeetingRecorderDock', () => {
     expect(panel).toHaveStyle({ right: '20px', bottom: '20px' })
     expect(screen.queryByLabelText('拖动会议录音浮窗')).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: '关闭' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '弹出独立录音窗口' })).not.toBeInTheDocument()
     expect(screen.getByText('准备就绪')).toBeInTheDocument()
     expect(screen.getByTestId('meeting-recorder-controls').className).toContain('mt-1')
 
@@ -204,32 +202,6 @@ describe('MeetingRecorderDock', () => {
 
     expect(screen.queryByRole('region', { name: '会议录音' })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: '恢复会议录音' })).toBeInTheDocument()
-  })
-
-  it('can detach the recorder into a separate always-on-top-capable window', async () => {
-    const popupDocument = document.implementation.createHTMLDocument('recorder')
-    const popupWindow = {
-      document: popupDocument,
-      closed: false,
-      focus: vi.fn(),
-      addEventListener: vi.fn(),
-      removeEventListener: vi.fn(),
-      close: vi.fn(),
-    } as unknown as Window
-    const openSpy = vi.fn(() => popupWindow)
-    window.open = openSpy as unknown as typeof window.open
-    renderDock()
-
-    await userEvent.click(screen.getByRole('button', { name: '开始会议录音' }))
-    await userEvent.click(screen.getByRole('button', { name: '弹出独立录音窗口' }))
-
-    expect(openSpy).toHaveBeenCalledWith(
-      '',
-      'vinote-meeting-recorder',
-      expect.stringContaining('width=390'),
-    )
-    expect(popupDocument.body.querySelector('#vinote-meeting-recorder-popout-root')).toBeTruthy()
-    expect(popupWindow.focus).toHaveBeenCalled()
   })
 
   it('keeps recorded audio after generation failure and offers regenerate vs re-record choices', async () => {
