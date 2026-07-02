@@ -1,4 +1,5 @@
 import type { NoteRecord } from '../stores/noteLibraryStore'
+import type { WorkspaceSelection } from '../stores/teamStore'
 import { apiFetch, apiJson } from './api'
 
 export const MEETING_NOTE_SOURCE_TYPE = 'meeting_recording'
@@ -23,7 +24,9 @@ type SaveNote = (
   content: string,
   videoUrl?: string,
   taskId?: string,
+  workspace?: WorkspaceSelection,
   sourceType?: string,
+  status?: string,
 ) => Promise<NoteRecord | null>
 
 interface UploadGenerationInput {
@@ -183,7 +186,9 @@ export async function completeMeetingRecordingGeneration({
     result.markdown || '',
     undefined,
     result.task_id || taskId,
+    undefined,
     MEETING_NOTE_SOURCE_TYPE,
+    'done',
   )
   if (!note) {
     throw new MeetingGenerationError('saving', 'Meeting summary was generated but could not be saved.')

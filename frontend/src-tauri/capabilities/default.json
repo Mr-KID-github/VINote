@@ -2,6 +2,6 @@
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
   "description": "Default desktop permissions for VINote.",
-  "windows": ["main"],
+  "windows": ["main", "recorder-window"],
   "permissions": ["core:default", "opener:default"]
 }

@@ -1,26 +1,22 @@
 # Meeting recorder floating window behavior
 
-## Current repository scope
-
-This repository currently contains a Vite/React web frontend and a Python backend. It does not contain an Electron, Tauri, or other native desktop shell/main-process implementation.
-
-Because of that, the web implementation cannot create a true operating-system-level always-on-top recorder window. Browser popup windows and Document Picture-in-Picture do not provide a reliable cross-browser, cross-OS guarantee that the recorder will remain above other applications or above another application's fullscreen window.
-
 ## Web behavior
 
-For the web app, the meeting recorder remains a small draggable overlay inside the VINote browser window. It stays mounted at the application shell level, so it remains available while navigating within VINote.
+The web app keeps the meeting recorder as a small draggable overlay inside the VINote browser window. It stays mounted at the application shell level, so it remains available while navigating within VINote.
 
-The web UI must not show a "pop out", "export window", or optional inside/outside mode. In a browser, presenting that as always-on-top would be misleading.
+The web UI must not show a "pop out", "export window", or optional inside/outside mode. In a browser, presenting that as always-on-top would be misleading because browser windows cannot guarantee true OS-level always-on-top behavior.
 
-## Desktop behavior required for a future native shell
+## Desktop behavior
 
-When VINote adds a native desktop shell, meeting recording should use a native floating window by default:
+The Tauri desktop app supports a native recorder window by default:
 
-- create at most one recorder window per active recording session;
-- open it automatically when recording starts;
-- keep it small, draggable, and initially positioned near the side/top of the screen;
-- set native always-on-top where supported by the OS/window manager;
-- keep it alive independently of the main VINote window while recording is active;
-- synchronize pause, resume, stop, elapsed time, status, and errors through shared recording state or IPC;
-- close or transition the floating window after recording stops according to the post-recording flow;
-- document OS limitations where fullscreen apps or window managers prevent always-on-top overlays.
+- clicking Start in the main app opens one native `recorder-window` instead of starting MediaRecorder in the main window;
+- the recorder window is created by Rust/Tauri with a stable `recorder-window` label;
+- duplicate Start clicks focus the existing recorder window rather than creating duplicates;
+- the native window is small, borderless, skipped from taskbar, positioned near the screen edge/top, and configured with `always_on_top`;
+- the recorder window loads `index.html?recorderWindow=1&autostart=1`, mounts the same `MeetingRecorderDock`, and auto-starts recording there;
+- the web build still keeps the in-app draggable overlay and has no broken pop-out button.
+
+## Platform notes
+
+Always-on-top is requested through the native Tauri window API. Some operating systems/window managers may still restrict overlays above exclusive fullscreen applications.

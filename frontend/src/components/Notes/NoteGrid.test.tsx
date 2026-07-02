@@ -24,6 +24,7 @@ describe('NoteGrid', () => {
               sourceType: 'meeting_recording',
               taskId: 'task-1',
               status: 'generation_failed',
+              scope: 'personal',
               createdAt: '2026-07-01T10:00:00Z',
               updatedAt: '2026-07-01T10:01:00Z',
             },

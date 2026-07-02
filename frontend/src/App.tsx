@@ -2,6 +2,8 @@ import { Suspense, lazy, useEffect } from 'react'
 import { BrowserRouter, Route, Routes } from 'react-router-dom'
 import { AuthGuard } from './components/Auth/AuthGuard'
 import { MainLayout } from './components/Layout/MainLayout'
+import { MeetingRecorderDock } from './components/MeetingRecorder/MeetingRecorderDock'
+import { isRecorderWindowRoute } from './lib/desktopRecorderWindow'
 import { useAuthStore } from './stores/authStore'
 import { useThemeStore } from './stores/themeStore'
 
@@ -35,6 +37,16 @@ function App() {
 
   if (!initialized) {
     return <RouteFallback />
+  }
+
+  if (isRecorderWindowRoute()) {
+    return (
+      <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+        <div className="min-h-screen bg-transparent">
+          <MeetingRecorderDock autoStart />
+        </div>
+      </BrowserRouter>
+    )
   }
 
   return (

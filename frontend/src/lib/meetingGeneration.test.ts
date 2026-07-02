@@ -73,7 +73,9 @@ describe('meetingGeneration', () => {
       '# Summary',
       undefined,
       'task-1',
+      undefined,
       'meeting_recording',
+      'done',
     )
   })
 

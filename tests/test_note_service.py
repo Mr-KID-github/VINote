@@ -198,7 +198,7 @@ class NoteServiceTest(unittest.TestCase):
                 output_language="zh-CN",
             )
 
-            transcribed_path = Path(transcription_service.calls[0])
+            transcribed_path = Path(transcription_service.calls[0]["audio_path"])
             self.assertTrue(transcribed_path.exists())
             self.assertEqual(transcribed_path.read_bytes(), b"same audio bytes")
             self.assertFalse(uploaded_audio.exists())
