@@ -44,12 +44,12 @@ export function NoteGrid({ notes, loading = false, emptyTitle, emptyBody, onOpen
         >
           <div className="flex items-start justify-between gap-3">
             <h3 className="font-semibold text-gray-900 dark:text-gray-100">{note.title}</h3>
-            <div className="flex shrink-0 items-center gap-2">
+<div className="flex shrink-0 flex-wrap justify-end gap-1.5">
               <span className="rounded-full bg-gray-100 px-2 py-1 text-[11px] font-medium text-gray-600 dark:bg-[#161616] dark:text-gray-300">
                 {note.scope === 'team' ? note.teamName || (isZh ? '团队' : 'Team') : (isZh ? '个人' : 'Personal')}
               </span>
               {note.status && note.status !== 'done' ? (
-                <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700 dark:bg-amber-900/30 dark:text-amber-200">
+                <span className="rounded-full bg-amber-50 px-2 py-1 text-[11px] font-medium text-amber-700 dark:bg-amber-900/30 dark:text-amber-200">
                   {statusLabels[note.status] || note.status}
                 </span>
               ) : null}

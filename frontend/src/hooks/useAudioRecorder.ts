@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { requestDesktopMicrophoneAccess } from '../lib/desktopMicrophonePermission'
 import { checkMicrophoneReadiness, mapMicrophoneError } from '../lib/microphonePermission'
 
 type AudioRecorderStatus = 'idle' | 'requesting' | 'recording' | 'paused' | 'stopped' | 'failed'
@@ -115,7 +114,6 @@ export function useAudioRecorder() {
     }
 
     try {
-      await requestDesktopMicrophoneAccess()
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
       if (stream.getAudioTracks().length === 0) {
         throw new Error('microphone_no-device')

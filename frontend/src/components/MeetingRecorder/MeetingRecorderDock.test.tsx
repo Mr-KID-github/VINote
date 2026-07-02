@@ -18,6 +18,12 @@ const meetingGenerationMock = vi.hoisted(() => ({
   submitMeetingRecording: vi.fn(),
   completeMeetingRecordingGeneration: vi.fn(),
 }))
+const desktopRecorderWindowMock = vi.hoisted(() => ({
+  isTauriRuntime: vi.fn(() => false),
+  isRecorderWindowRoute: vi.fn(() => false),
+  openRecorderWindow: vi.fn(),
+  closeCurrentRecorderWindow: vi.fn(),
+}))
 const saveNoteMock = vi.hoisted(() => vi.fn())
 const updateNoteMock = vi.hoisted(() => vi.fn())
 
@@ -76,6 +82,8 @@ vi.mock('../../lib/meetingGeneration', async (importOriginal) => {
   }
 })
 
+vi.mock('../../lib/desktopRecorderWindow', () => desktopRecorderWindowMock)
+
 function renderDock() {
   return render(
     <MemoryRouter>
@@ -100,6 +108,10 @@ describe('MeetingRecorderDock', () => {
     })
     saveNoteMock.mockResolvedValue({ id: 'draft-1', title: '会议录音', content: '# Draft', taskId: 'task-1', status: 'pending' })
     updateNoteMock.mockResolvedValue({ id: 'draft-1', title: '会议录音', content: '# Summary', taskId: 'task-1', status: 'done' })
+    desktopRecorderWindowMock.isTauriRuntime.mockReturnValue(false)
+    desktopRecorderWindowMock.isRecorderWindowRoute.mockReturnValue(false)
+    desktopRecorderWindowMock.openRecorderWindow.mockResolvedValue('created')
+    desktopRecorderWindowMock.closeCurrentRecorderWindow.mockResolvedValue(undefined)
   })
 
   it('shows the smallest circular idle launcher and does not start recording until Start is clicked', async () => {
@@ -133,6 +145,18 @@ describe('MeetingRecorderDock', () => {
     await userEvent.click(screen.getByRole('button', { name: '暂停' }))
     expect(screen.getByTestId('meeting-recorder-expanded-dot').className).toContain('bg-[#FCA5A5]')
     expect(screen.getByTestId('meeting-recorder-expanded-dot').className).not.toContain('bg-[#EF2B2D]')
+  })
+
+  it('opens the native recorder window instead of starting MediaRecorder in the desktop main window', async () => {
+    desktopRecorderWindowMock.isTauriRuntime.mockReturnValue(true)
+    desktopRecorderWindowMock.isRecorderWindowRoute.mockReturnValue(false)
+    renderDock()
+
+    await userEvent.click(screen.getByRole('button', { name: '开始会议录音' }))
+    await userEvent.click(screen.getByRole('button', { name: '开始' }))
+
+    expect(desktopRecorderWindowMock.openRecorderWindow).toHaveBeenCalledTimes(1)
+    expect(audioRecorderMock.start).not.toHaveBeenCalled()
   })
 
   it('requires pausing before the red Stop, then Stop directly generates the meeting note', async () => {
@@ -223,6 +247,7 @@ describe('MeetingRecorderDock', () => {
         expect.stringContaining('原始音频'),
         undefined,
         'task-1',
+        { scope: 'personal' },
         'meeting_recording',
         'pending',
       )
@@ -251,6 +276,7 @@ describe('MeetingRecorderDock', () => {
         expect.stringContaining('/api/task/task-1/artifacts/media/source_audio.webm'),
         undefined,
         'task-1',
+        { scope: 'personal' },
         'meeting_recording',
         'pending',
       )

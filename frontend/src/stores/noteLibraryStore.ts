@@ -190,7 +190,11 @@ export const useNoteLibraryStore = create<NoteLibraryState>((set, get) => ({
       const data = await apiJson<NoteRow>(`/api/notes/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title: normalizedTitle, content, status }),
+<<<<<<< HEAD
+        body: JSON.stringify({ title: normalizedTitle, content, ...(status ? { status } : {}) }),
+=======
+        body: JSON.stringify({ title: normalizedTitle, content, ...(status ? { status } : {}) }),
+>>>>>>> 9521cd11bd4ccdd058936ffdedfbf2866f9ac6a5
       })
       const note = mapRow(data)
       set((state) => ({

@@ -123,6 +123,7 @@ const messages = {
       saveTargetWorkspace: 'Save target workspace',
       saveTargetWorkspaceHint: 'When generation finishes, the note will be saved into the currently selected workspace.',
     },
+
     fileUploader: {
       videoUrl: 'Video URL',
       localFile: 'Local file',
@@ -287,11 +288,6 @@ const messages = {
       saveChanges: 'Save changes',
       createProfile: 'Create profile',
       keyHint: 'Only Groq STT profiles store an API key. Local and self-hosted profiles do not.',
-      localSupportInstalled: 'Local STT support is installed.',
-      localSupportMissing: 'Local STT support is not installed yet.',
-      localSupportInstall: 'Install local STT support',
-      localSupportInstalling: 'Installing local STT support...',
-      localSupportModelHint: 'The selected model may be downloaded automatically on first use.',
     },
   },
   'zh-CN': {
@@ -414,6 +410,7 @@ const messages = {
       saveTargetWorkspace: '保存目标工作区',
       saveTargetWorkspaceHint: '生成完成后，这篇笔记会直接保存到当前选中的工作区。',
     },
+
     fileUploader: {
       videoUrl: '视频链接',
       localFile: '本地文件',
@@ -578,11 +575,6 @@ const messages = {
       saveChanges: '保存修改',
       createProfile: '创建配置',
       keyHint: '只有 Groq STT 配置会保存 API Key。本地或自托管配置不会保存密钥。',
-      localSupportInstalled: '本地 STT 支持已安装。',
-      localSupportMissing: '本地 STT 支持尚未安装。',
-      localSupportInstall: '安装本地 STT 支持',
-      localSupportInstalling: '正在安装本地 STT 支持...',
-      localSupportModelHint: '所选模型可能会在首次使用时自动下载。',
     },
   },
 } as const

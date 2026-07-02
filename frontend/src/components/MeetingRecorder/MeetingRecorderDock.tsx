@@ -1,8 +1,8 @@
-import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
 import { ChevronDown, Loader2, Mic, Minus, Pause, Play, RotateCcw, Square, X } from 'lucide-react'
 import clsx from 'clsx'
 import { useNavigate } from 'react-router-dom'
 import { useAudioRecorder } from '../../hooks/useAudioRecorder'
+import { closeCurrentRecorderWindow, isRecorderWindowRoute, isTauriRuntime, openRecorderWindow } from '../../lib/desktopRecorderWindow'
 import { MEETING_NOTE_SOURCE_TYPE, MeetingGenerationError, completeMeetingRecordingGeneration, createMeetingRecordingTitle, submitMeetingRecording } from '../../lib/meetingGeneration'
 import { useI18n } from '../../lib/i18n'
 import { useMeetingRecorderStore, type MeetingRecorderPhase, type MeetingRecorderStage } from '../../stores/meetingRecorderStore'
@@ -108,21 +108,20 @@ function buildMeetingDraftContent({
   ].filter(Boolean).join('\n')
 }
 
-export function MeetingRecorderDock() {
+interface MeetingRecorderDockProps {
+  autoStart?: boolean
+}
+
+export function MeetingRecorderDock({ autoStart = false }: MeetingRecorderDockProps) {
   const navigate = useNavigate()
   const recorder = useAudioRecorder()
   const { copy, language } = useI18n()
   const recorderCopy = copy.meetingRecorder
+  const isRecorderWindow = isRecorderWindowRoute()
   const { saveNote, updateNote } = useNoteLibraryStore()
   const { currentWorkspace } = useTeamStore()
-  const {
-    selectedProfileId: selectedModelProfileId,
-    loadProfiles: loadModelProfiles,
-  } = useModelProfileStore()
-  const {
-    selectedProfileId: selectedSTTProfileId,
-    loadProfiles: loadSTTProfiles,
-  } = useSTTProfileStore()
+  const { selectedProfileId: selectedModelProfileId } = useModelProfileStore()
+  const { selectedProfileId: selectedSTTProfileId } = useSTTProfileStore()
   const {
     isPanelOpen,
     isMinimized,
@@ -134,6 +133,7 @@ export function MeetingRecorderDock() {
     retryDescription,
     notification,
     openPanel,
+    closePanel,
     requestClose,
     cancelCloseRequest,
     discardSession,
@@ -158,11 +158,6 @@ export function MeetingRecorderDock() {
   const draftNoteIdRef = useRef<string | null>(null)
   const draftTitleRef = useRef('')
   const finishInFlightRef = useRef(false)
-
-  useEffect(() => {
-    void loadModelProfiles()
-    void loadSTTProfiles()
-  }, [loadModelProfiles, loadSTTProfiles])
 
   useEffect(() => {
     setElapsedSeconds(recorder.elapsedSeconds)
@@ -212,19 +207,19 @@ export function MeetingRecorderDock() {
     }
   }, [])
 
-  const beginDrag = (event: ReactPointerEvent<HTMLElement>) => {
+  const beginDrag = (event: React.PointerEvent<HTMLElement>) => {
     const current = hasCustomPosition ? position : getInitialPosition()
     setPosition(current)
     setHasCustomPosition(true)
     dragOffsetRef.current = { x: event.clientX - current.x, y: event.clientY - current.y }
   }
 
-  const handlePanelPointerDown = (event: ReactPointerEvent<HTMLElement>) => {
+  const handlePanelPointerDown = (event: React.PointerEvent<HTMLElement>) => {
     if ((event.target as HTMLElement).closest('button')) return
     beginDrag(event)
   }
 
-  const handleMinimizedPointerDown = (event: ReactPointerEvent<HTMLElement>) => {
+  const handleMinimizedPointerDown = (event: React.PointerEvent<HTMLElement>) => {
     const current = hasCustomPosition ? position : getInitialPosition()
     setPosition(current)
     minimizedPointerRef.current = {
@@ -256,6 +251,12 @@ export function MeetingRecorderDock() {
   }
 
   const handleStart = async () => {
+    if (isTauriRuntime() && !isRecorderWindow) {
+      await openRecorderWindow()
+      closePanel()
+      return
+    }
+
     startedAtRef.current = new Date()
     setPhase('requesting')
     try {
@@ -265,6 +266,14 @@ export function MeetingRecorderDock() {
       failStage('uploading', formatRecorderFailure(startError, recorderCopy))
     }
   }
+
+  useEffect(() => {
+    if (!autoStart || phase !== 'idle' || finishInFlightRef.current) return
+    openPanel()
+    void handleStart()
+    // Run only for recorder-window bootstrap; phase changes must not restart recording.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoStart])
 
   const handlePause = () => {
     recorder.pause()
@@ -417,6 +426,7 @@ export function MeetingRecorderDock() {
   const handleDiscard = () => {
     recorder.reset()
     discardSession()
+    void closeCurrentRecorderWindow()
   }
 
   const handleReRecord = () => {
