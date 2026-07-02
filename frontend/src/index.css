@@ -16,6 +16,14 @@ body {
   min-height: 100vh;
 }
 
+html.recorder-window-route,
+body.recorder-window-route,
+html.recorder-window-route #root {
+  min-height: 100vh;
+  overflow: hidden;
+  background: transparent;
+}
+
 .stealth-scroll {
   scrollbar-width: thin;
   scrollbar-color: transparent transparent;

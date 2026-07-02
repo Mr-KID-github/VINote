@@ -302,6 +302,8 @@ class NoteService:
         resolved_output_language = normalize_output_language(output_language)
         resolved_summary_mode = normalize_summary_mode(summary_mode)
         final_dir = self.artifact_service.finalize_task_dir(task_dir, audio_meta.title, task_id)
+        self._rebase_audio_meta_path_after_finalize(audio_meta, original_task_dir=task_dir, final_dir=final_dir)
+        self.artifact_service.save_audio_meta(final_dir, audio_meta)
         context = PipelineContext(
             task_id=task_id,
             task_dir=final_dir,
@@ -336,6 +338,24 @@ class NoteService:
         except Exception as exc:
             self.artifact_service.update_status(final_dir, "failed", str(exc))
             raise
+
+    @staticmethod
+    def _rebase_audio_meta_path_after_finalize(
+        audio_meta: AudioDownloadResult,
+        *,
+        original_task_dir: Path,
+        final_dir: Path,
+    ) -> None:
+        if not audio_meta.file_path:
+            return
+
+        source_path = Path(audio_meta.file_path)
+        try:
+            relative_path = source_path.resolve().relative_to(original_task_dir.resolve())
+        except ValueError:
+            return
+
+        audio_meta.file_path = str(final_dir / relative_path)
 
     def _transcribe_audio(self, context: PipelineContext):
         if context.preloaded_transcript is not None:

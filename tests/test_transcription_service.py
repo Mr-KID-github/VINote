@@ -3,7 +3,7 @@ from unittest.mock import patch
 
 from app.models.stt_profile import ResolvedSTTConfig
 from app.models.transcript import TranscriptResult, TranscriptSegment
-from app.services.transcription_service import TranscriptionService
+from app.services.transcription_service import TranscriptionService, create_transcriber
 
 
 class FakeSTTProfileService:
@@ -32,6 +32,21 @@ class FakeTranscriber:
 
 
 class TranscriptionServiceTest(unittest.TestCase):
+    def test_create_transcriber_explains_missing_openai_whisper_dependency(self):
+        config = ResolvedSTTConfig(provider="whisper", model_name="base", device="cpu")
+
+        with patch("app.services.transcription_service.importlib.util.find_spec", return_value=None):
+            with self.assertRaisesRegex(RuntimeError, "pip install openai-whisper"):
+                create_transcriber(config)
+
+    def test_create_transcriber_explains_missing_faster_whisper_dependency(self):
+        config = ResolvedSTTConfig(provider="faster-whisper", model_name="base", device="cpu", compute_type="int8")
+
+        with patch("app.services.transcription_service.importlib.util.find_spec", return_value=object()):
+            with patch("builtins.__import__", side_effect=ImportError("No module named 'faster_whisper'")):
+                with self.assertRaisesRegex(RuntimeError, "requirements.local-transcribers.txt"):
+                    create_transcriber(config)
+
     def test_transcribe_uses_selected_profile_per_task(self):
         fake_profile_service = FakeSTTProfileService()
         created_models: list[str] = []

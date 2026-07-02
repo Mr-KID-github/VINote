@@ -116,6 +116,8 @@ class NoteRepository:
                 return None
             record.title = payload.title.strip()
             record.content = payload.content
+            if payload.status:
+                record.status = payload.status
             db.flush()
             return self._to_response(record, team_name=self._get_team_name(db, record.team_id))
 

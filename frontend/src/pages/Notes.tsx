@@ -22,7 +22,7 @@ export function Notes() {
       <div>
         <h2 className="text-2xl font-bold">{copy.notes.title}</h2>
         <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-          {isZh ? `${workspaceLabel}下保存的全部笔记。` : `All saved notes in ${workspaceLabel}.`}
+          {isZh ? `${workspaceLabel}下保存的全部笔记和录音。` : `All saved notes and recordings in ${workspaceLabel}.`}
         </p>
       </div>
 

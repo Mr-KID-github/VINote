@@ -209,12 +209,15 @@ class STTProfileService:
         }
 
     def _build_resolved_config(self, record: STTProfileRecord) -> ResolvedSTTConfig:
+        language = record.language
+        if record.provider in {"groq", "whisper", "faster-whisper"} and language and language.lower() == "auto":
+            language = None
         return ResolvedSTTConfig(
             provider=record.provider,
             model_name=record.model_name,
             base_url=record.base_url,
             api_key=self.repository.decrypt_api_key(record.api_key_encrypted),
-            language=record.language,
+            language=language,
             device=record.device,
             compute_type=record.compute_type,
             use_gpu=record.use_gpu,

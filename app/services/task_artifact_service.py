@@ -89,7 +89,7 @@ class TaskArtifactService:
         media_dir = task_dir / "media"
         media_dir.mkdir(parents=True, exist_ok=True)
         target_path = media_dir / f"{target_stem}{source.suffix.lower()}"
-        if source != target_path:
+        if source != target_path.resolve():
             shutil.copy2(source, target_path)
         return target_path
 

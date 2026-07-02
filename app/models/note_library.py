@@ -41,6 +41,7 @@ class NoteCreateRequest(BaseModel):
 class NoteUpdateRequest(BaseModel):
     title: str = Field(min_length=1, max_length=255)
     content: str = ""
+    status: str | None = None
 
 
 class NoteShareRecord(BaseModel):

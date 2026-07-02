@@ -16,6 +16,7 @@ from app.models.auth import AuthenticatedUser
 from app.models.note import LocalFileRequest, NoteRequest, NoteResponse, SummaryMode, TaskStatusResponse
 from app.models.transcript import TranscriptResult, TranscriptSegment
 from app.services.auth_service import get_optional_current_user
+from app.services.audio_normalizer import normalize_audio_for_transcription
 from app.services.note_service import NoteService
 
 logger = logging.getLogger(__name__)
@@ -504,8 +505,22 @@ async def generate_from_upload(
             )
         else:
             _ensure_media_extension(normalized_source_type, file.filename)
-            upload_path = _build_upload_path(task_id, normalized_source_type, file.filename)
-            upload_path.write_bytes(file_bytes)
+            if normalized_source_type == "audio":
+                task_dir = _note_service.artifact_service.create_task_dir(task_id)
+                media_dir = task_dir / "media"
+                media_dir.mkdir(parents=True, exist_ok=True)
+                suffix = Path(_sanitize_filename(file.filename)).suffix.lower() or ".webm"
+                upload_path = media_dir / f"source_audio{suffix}"
+                upload_path.write_bytes(file_bytes)
+                # The original browser recording can have a malformed webm
+                # header (notably from Tauri's WKWebView). Normalize it to a
+                # canonical 16kHz mono WAV so faster-whisper can decode it.
+                # The original file is kept untouched on disk for download.
+                upload_path = normalize_audio_for_transcription(upload_path)
+                _note_service.artifact_service.update_status(task_dir, "uploaded", "Audio uploaded")
+            else:
+                upload_path = _build_upload_path(task_id, normalized_source_type, file.filename)
+                upload_path.write_bytes(file_bytes)
             req = _build_note_request_fields(
                 file_path=str(upload_path),
                 title=title,
@@ -525,7 +540,7 @@ async def generate_from_upload(
                 req=req,
                 user_id=user.user_id if user else None,
             )
-        return {"task_id": task_id, "status": "pending", "message": "Task submitted"}
+        return {"task_id": task_id, "status": "uploaded" if normalized_source_type == "audio" else "pending", "message": "Task submitted"}
     except HTTPException:
         raise
     except ValueError as exc:
@@ -584,6 +599,8 @@ async def generate_from_upload_sync(
         else:
             upload_path = _build_upload_path(task_id, normalized_source_type, file.filename)
             upload_path.write_bytes(file_bytes)
+            if normalized_source_type == "audio":
+                upload_path = normalize_audio_for_transcription(upload_path)
             req = _build_note_request_fields(
                 file_path=str(upload_path),
                 title=title,

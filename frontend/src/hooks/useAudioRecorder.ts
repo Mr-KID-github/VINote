@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { requestDesktopMicrophoneAccess } from '../lib/desktopMicrophonePermission'
+import { checkMicrophoneReadiness, mapMicrophoneError } from '../lib/microphonePermission'
+import { normalizeAudioBlob } from '../lib/audioNormalizer'
 
 type AudioRecorderStatus = 'idle' | 'requesting' | 'recording' | 'paused' | 'stopped' | 'failed'
 
@@ -96,7 +98,7 @@ export function useAudioRecorder() {
 
   const start = useCallback(async () => {
     if (!isSupported) {
-      const message = 'This browser does not support audio recording.'
+      const message = 'microphone_unsupported'
       setError(message)
       setStatus('failed')
       throw new Error(message)
@@ -107,9 +109,13 @@ export function useAudioRecorder() {
 
     try {
       await requestDesktopMicrophoneAccess()
+      const readiness = await checkMicrophoneReadiness()
+      if (!readiness.ok) {
+        throw new Error(`microphone_${readiness.reason}`)
+      }
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
       if (stream.getAudioTracks().length === 0) {
-        throw new Error('microphone_no_audio_track')
+        throw new Error('microphone_no-device')
       }
       const mimeType = getPreferredAudioMimeType()
       const recorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream)
@@ -136,7 +142,8 @@ export function useAudioRecorder() {
       startTimer()
     } catch (recordingError) {
       cleanupStream()
-      const message = recordingError instanceof Error ? recordingError.message : 'Failed to start audio recording.'
+      const reason = mapMicrophoneError(recordingError)
+      const message = reason === 'unknown' && recordingError instanceof Error ? recordingError.message : `microphone_${reason}`
       setError(message)
       setStatus('failed')
       throw new Error(message)
@@ -186,19 +193,45 @@ export function useAudioRecorder() {
         }
       }
 
-      const finalize = () => {
+      const finalize = async () => {
         if (settled) {
           return
         }
         settled = true
         clearFallbackTimer()
-        const blob = new Blob(chunksRef.current, { type: mimeTypeRef.current || recorder.mimeType || 'audio/webm' })
+        const rawBlob = new Blob(chunksRef.current, { type: mimeTypeRef.current || recorder.mimeType || 'audio/webm' })
+        chunksRef.current = []
         recorder.onstop = null
         recorder.onerror = null
         recorderRef.current = null
         cleanupStream()
+        if (rawBlob.size === 0) {
+          setStatus('failed')
+          reject(new Error('microphone_no_audio'))
+          return
+        }
+        // Re-encode through the browser's WebAudio graph. This decouples the
+        // uploaded bytes from any quirks of MediaRecorder's webm muxer (Tauri's
+        // WKWebView has been observed to write a shifted EBML header that
+        // breaks libavformat). The transcriber always sees a canonical 16kHz
+        // mono WAV.
+        try {
+          const normalized = await normalizeAudioBlob(rawBlob)
+          if (normalized.size > 0) {
+            mimeTypeRef.current = normalized.type || 'audio/wav'
+            setStatus('stopped')
+            resolve(normalized)
+            return
+          }
+        } catch (normalizationError) {
+          // Fall through to the raw blob if decoding fails — the backend
+          // normalizer will surface a clean error rather than swallowing it.
+          if (typeof console !== 'undefined') {
+            console.warn('[useAudioRecorder] normalize failed:', normalizationError)
+          }
+        }
         setStatus('stopped')
-        resolve(blob)
+        resolve(rawBlob)
       }
 
       const fail = (message = 'Audio recording failed.') => {
