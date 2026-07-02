@@ -11,6 +11,7 @@ export function Login() {
   const [isLogin, setIsLogin] = useState(true)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
@@ -22,9 +23,9 @@ export function Login() {
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault()
     setError('')
-    setLoading(true)
 
     if (isLogin) {
+      setLoading(true)
       const { error: signInError } = await signIn(email, password)
 
       if (signInError) {
@@ -37,6 +38,13 @@ export function Login() {
       navigate('/')
       return
     }
+
+    if (password !== confirmPassword) {
+      setError(copy.login.passwordMismatch)
+      return
+    }
+
+    setLoading(true)
 
     const { error: signUpError, user } = await signUp(email, password)
 
@@ -72,12 +80,13 @@ export function Login() {
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              <label htmlFor="login-email" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                 {copy.login.email}
               </label>
               <div className="relative">
                 <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                 <input
+                  id="login-email"
                   type="email"
                   value={email}
                   onChange={(event) => setEmail(event.target.value)}
@@ -90,12 +99,13 @@ export function Login() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              <label htmlFor="login-password" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                 {copy.login.password}
               </label>
               <div className="relative">
                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                 <input
+                  id="login-password"
                   type={showPassword ? 'text' : 'password'}
                   value={password}
                   onChange={(event) => setPassword(event.target.value)}
@@ -113,7 +123,34 @@ export function Login() {
                   {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                 </button>
               </div>
+              {!isLogin ? (
+                <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                  {copy.login.passwordRules}
+                </p>
+              ) : null}
             </div>
+
+            {!isLogin ? (
+              <div>
+                <label htmlFor="login-confirm-password" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  {copy.login.confirmPassword}
+                </label>
+                <div className="relative">
+                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                  <input
+                    id="login-confirm-password"
+                    type={showPassword ? 'text' : 'password'}
+                    value={confirmPassword}
+                    onChange={(event) => setConfirmPassword(event.target.value)}
+                    autoComplete="new-password"
+                    className="w-full rounded-lg border border-gray-200 bg-white py-2.5 pl-10 pr-4 text-gray-900 placeholder:text-gray-400 outline-none transition-all focus:border-transparent focus:ring-2 focus:ring-primary-light dark:border-gray-700 dark:bg-[#191919] dark:text-gray-100 dark:placeholder:text-gray-500 dark:focus:ring-primary-dark"
+                    placeholder={copy.login.confirmPasswordPlaceholder}
+                    required
+                    minLength={6}
+                  />
+                </div>
+              </div>
+            ) : null}
 
             {error ? <p className="text-sm text-red-500 dark:text-red-300">{error}</p> : null}
 
@@ -132,6 +169,7 @@ export function Login() {
               onClick={() => {
                 setIsLogin(!isLogin)
                 setError('')
+                setConfirmPassword('')
               }}
               className="ml-1 text-primary-light dark:text-primary-dark hover:underline"
             >
