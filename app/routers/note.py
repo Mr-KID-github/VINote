@@ -8,7 +8,7 @@ import uuid
 from pathlib import Path
 
 from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, UploadFile
-from fastapi.responses import FileResponse
+from fastapi.responses import Response
 
 from app.config import settings
 from app.llm.prompts import STYLE_MAP
@@ -314,9 +314,20 @@ def generate_note_async(
     background_tasks: BackgroundTasks,
     user: AuthenticatedUser | None = Depends(get_optional_current_user),
 ):
-    task_id = str(uuid.uuid4())
-    background_tasks.add_task(_run_task, task_id=task_id, req=req, user_id=user.user_id if user else None)
-    return {"task_id": task_id, "status": "pending", "message": "Task submitted"}
+    del background_tasks
+    try:
+        run = _note_service.submit_video_url(
+            video_url=req.video_url,
+            style=req.style or "detailed",
+            summary_mode=req.summary_mode,
+            extras=req.extras,
+            output_language=req.output_language,
+            user_id=user.user_id if user else None,
+        )
+    except Exception as exc:
+        logger.error("[API] generate failed to submit VILab Server run: %s", exc, exc_info=True)
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    return {"task_id": run["id"], "status": run.get("status", "pending"), "message": "Task submitted to VILab Server"}
 
 
 @router.post("/generate_sync", response_model=NoteResponse)
@@ -324,35 +335,10 @@ def generate_note_sync(
     req: NoteRequest,
     user: AuthenticatedUser | None = Depends(get_optional_current_user),
 ):
-    task_id = str(uuid.uuid4())
-    try:
-        result = _note_service.generate(
-            video_url=req.video_url,
-            task_id=task_id,
-            platform=req.platform,
-            style=req.style or "detailed",
-            summary_mode=req.summary_mode,
-            extras=req.extras,
-            output_language=req.output_language,
-            model_profile_id=req.model_profile_id,
-            stt_profile_id=req.stt_profile_id,
-            model_name=req.model_name,
-            api_key=req.api_key,
-            base_url=req.base_url,
-            user_id=user.user_id if user else None,
-        )
-    except Exception as exc:
-        logger.error("[API] generate_sync failed: %s", exc, exc_info=True)
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
-
-    return NoteResponse(
-        task_id=task_id,
-        title=result.audio_meta.title,
-        markdown=result.markdown,
-        duration=result.audio_meta.duration,
-        platform=result.audio_meta.platform,
-        video_id=result.audio_meta.video_id,
-        summary_mode=result.summary_mode,
+    del req, user
+    raise HTTPException(
+        status_code=410,
+        detail="Synchronous local note generation is deprecated. Use /api/generate and poll /api/task/{task_id}; VINote now delegates pipeline work to VILab Server.",
     )
 
 
@@ -379,27 +365,22 @@ def get_task_status(task_id: str):
 
 @router.get("/task/{task_id}/artifacts/{asset_path:path}", include_in_schema=False)
 def get_task_artifact(task_id: str, asset_path: str):
-    task_dir = _note_service.artifact_service.find_task_dir(task_id)
-    if not task_dir:
-        raise HTTPException(status_code=404, detail="Task not found")
-
-    normalized_parts = Path(asset_path).parts
-    if not normalized_parts or normalized_parts[0] not in {"screenshots", "media"}:
-        raise HTTPException(status_code=404, detail="Artifact not found")
-
-    requested_path = (task_dir / asset_path).resolve()
-    task_root = task_dir.resolve()
-    if task_root not in requested_path.parents and requested_path != task_root:
-        raise HTTPException(status_code=404, detail="Artifact not found")
-    if not requested_path.exists() or not requested_path.is_file():
-        raise HTTPException(status_code=404, detail="Artifact not found")
-
-    return FileResponse(Path(requested_path))
+    try:
+        body, content_type = _note_service.get_artifact(task_id, asset_path)
+    except Exception as exc:
+        logger.error("[API] artifact proxy failed task_id=%s path=%s error=%s", task_id, asset_path, exc)
+        raise HTTPException(status_code=404, detail="Artifact not found") from exc
+    return Response(content=body, media_type=content_type)
 
 
 @router.get("/styles")
 def get_styles():
-    return {"styles": [{"value": key, "description": value} for key, value in STYLE_MAP.items()]}
+    try:
+        styles = _note_service.list_styles()
+    except Exception as exc:
+        logger.error("[API] styles proxy failed: %s", exc, exc_info=True)
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    return styles
 
 
 @router.post("/generate_from_file", response_model=dict)
@@ -408,14 +389,22 @@ def generate_from_file_async(
     background_tasks: BackgroundTasks,
     user: AuthenticatedUser | None = Depends(get_optional_current_user),
 ):
-    task_id = str(uuid.uuid4())
-    background_tasks.add_task(
-        _run_task_from_file,
-        task_id=task_id,
-        req=req,
-        user_id=user.user_id if user else None,
-    )
-    return {"task_id": task_id, "status": "pending", "message": "Task submitted"}
+    del background_tasks
+    try:
+        run = _note_service.submit_file(
+            file_path=req.file_path,
+            source_type="audio",
+            title=req.title,
+            style=req.style or "meeting",
+            summary_mode=req.summary_mode,
+            extras=req.extras,
+            output_language=req.output_language,
+            user_id=user.user_id if user else None,
+        )
+    except Exception as exc:
+        logger.error("[API] generate_from_file failed to submit VILab Server run: %s", exc, exc_info=True)
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    return {"task_id": run["id"], "status": run.get("status", "pending"), "message": "Task submitted to VILab Server"}
 
 
 @router.post("/generate_from_file_sync", response_model=NoteResponse)
@@ -423,36 +412,8 @@ def generate_from_file_sync(
     req: LocalFileRequest,
     user: AuthenticatedUser | None = Depends(get_optional_current_user),
 ):
-    task_id = str(uuid.uuid4())
-    try:
-        result = _note_service.generate_from_file(
-            file_path=req.file_path,
-            task_id=task_id,
-            title=req.title,
-            style=req.style or "meeting",
-            summary_mode=req.summary_mode,
-            extras=req.extras,
-            output_language=req.output_language,
-            model_profile_id=req.model_profile_id,
-            stt_profile_id=req.stt_profile_id,
-            model_name=req.model_name,
-            api_key=req.api_key,
-            base_url=req.base_url,
-            user_id=user.user_id if user else None,
-        )
-    except Exception as exc:
-        logger.error("[API] generate_from_file_sync failed: %s", exc, exc_info=True)
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
-
-    return NoteResponse(
-        task_id=task_id,
-        title=result.audio_meta.title,
-        markdown=result.markdown,
-        duration=result.audio_meta.duration,
-        platform=result.audio_meta.platform,
-        video_id=result.audio_meta.video_id,
-        summary_mode=result.summary_mode,
-    )
+    del req, user
+    raise HTTPException(status_code=410, detail="Synchronous local file generation is deprecated; use async server-backed generation.")
 
 
 @router.post("/generate_from_upload", response_model=dict)
@@ -482,50 +443,22 @@ async def generate_from_upload(
             raise ValueError("Uploaded file is empty.")
 
         task_id = str(uuid.uuid4())
-
-        if normalized_source_type == "transcript":
-            _ensure_transcript_extension(file.filename)
-            transcript = _build_transcript_from_upload(file.filename, file_bytes)
-            background_tasks.add_task(
-                _run_task_from_transcript,
-                task_id=task_id,
-                transcript=transcript,
-                title=title or Path(file.filename or "transcript.txt").stem,
-                style=style or "meeting",
-                summary_mode=normalized_summary_mode,
-                extras=extras,
-                output_language=normalized_output_language,
-                model_profile_id=model_profile_id,
-                stt_profile_id=stt_profile_id,
-                model_name=model_name,
-                api_key=api_key,
-                base_url=base_url,
-                user_id=user.user_id if user else None,
-            )
-        else:
-            _ensure_media_extension(normalized_source_type, file.filename)
-            upload_path = _build_upload_path(task_id, normalized_source_type, file.filename)
-            upload_path.write_bytes(file_bytes)
-            req = _build_note_request_fields(
-                file_path=str(upload_path),
-                title=title,
-                style=style,
-                summary_mode=normalized_summary_mode,
-                extras=extras,
-                output_language=normalized_output_language,
-                model_profile_id=model_profile_id,
-                stt_profile_id=stt_profile_id,
-                model_name=model_name,
-                api_key=api_key,
-                base_url=base_url,
-            )
-            background_tasks.add_task(
-                _run_task_from_file,
-                task_id=task_id,
-                req=req,
-                user_id=user.user_id if user else None,
-            )
-        return {"task_id": task_id, "status": "pending", "message": "Task submitted"}
+        _ensure_transcript_extension(file.filename) if normalized_source_type == "transcript" else _ensure_media_extension(normalized_source_type, file.filename)
+        upload_path = _build_upload_path(task_id, normalized_source_type, file.filename)
+        upload_path.write_bytes(file_bytes)
+        pipeline = "meeting_minutes" if (style or "meeting") == "meeting" else "media_summary"
+        run = _note_service.submit_file(
+            file_path=str(upload_path),
+            source_type=normalized_source_type,
+            pipeline=pipeline,
+            title=title or Path(file.filename or upload_path.name).stem,
+            style=style or "meeting",
+            summary_mode=normalized_summary_mode,
+            extras=extras,
+            output_language=normalized_output_language,
+            user_id=user.user_id if user else None,
+        )
+        return {"task_id": run["id"], "status": run.get("status", "pending"), "message": "Task submitted to VILab Server"}
     except HTTPException:
         raise
     except ValueError as exc:
@@ -551,83 +484,8 @@ async def generate_from_upload_sync(
     base_url: str | None = Form(None),
     user: AuthenticatedUser | None = Depends(get_optional_current_user),
 ):
-    task_id = str(uuid.uuid4())
-    try:
-        normalized_source_type = _normalize_source_type(source_type)
-        normalized_summary_mode = _normalize_summary_mode(summary_mode)
-        normalized_output_language = _normalize_output_language(output_language)
-        file_bytes = await file.read()
-
-        if not file_bytes:
-            raise ValueError("Uploaded file is empty.")
-
-        _ensure_media_extension(normalized_source_type, file.filename)
-
-        if normalized_source_type == "transcript":
-            _ensure_transcript_extension(file.filename)
-            transcript = _build_transcript_from_upload(file.filename, file_bytes)
-            result = _note_service.generate_from_transcript(
-                transcript=transcript,
-                task_id=task_id,
-                title=title,
-                style=style or "meeting",
-                summary_mode=normalized_summary_mode,
-                extras=extras,
-                output_language=normalized_output_language,
-                model_profile_id=model_profile_id,
-                stt_profile_id=stt_profile_id,
-                model_name=model_name,
-                api_key=api_key,
-                base_url=base_url,
-                user_id=user.user_id if user else None,
-            )
-        else:
-            upload_path = _build_upload_path(task_id, normalized_source_type, file.filename)
-            upload_path.write_bytes(file_bytes)
-            req = _build_note_request_fields(
-                file_path=str(upload_path),
-                title=title,
-                style=style,
-                summary_mode=normalized_summary_mode,
-                extras=extras,
-                output_language=normalized_output_language,
-                model_profile_id=model_profile_id,
-                stt_profile_id=stt_profile_id,
-                model_name=model_name,
-                api_key=api_key,
-                base_url=base_url,
-            )
-            result = _note_service.generate_from_file(
-                file_path=req.file_path,
-                task_id=task_id,
-                title=req.title,
-                style=req.style or "meeting",
-                summary_mode=req.summary_mode,
-                extras=req.extras,
-                output_language=req.output_language,
-                model_profile_id=req.model_profile_id,
-                stt_profile_id=req.stt_profile_id,
-                model_name=req.model_name,
-                api_key=req.api_key,
-                base_url=req.base_url,
-                user_id=user.user_id if user else None,
-            )
-    except ValueError as exc:
-        logger.error("[API] generate_from_upload_sync failed: %s", exc, exc_info=True)
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-    except Exception as exc:
-        logger.error("[API] generate_from_upload_sync failed: %s", exc, exc_info=True)
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
-
-    return NoteResponse(
-        task_id=task_id,
-        title=result.audio_meta.title,
-        markdown=result.markdown,
-        duration=result.audio_meta.duration,
-        platform=result.audio_meta.platform,
-        video_id=result.audio_meta.video_id,
-        summary_mode=result.summary_mode,
-    )
+    del file, source_type, title, style, summary_mode, extras, output_language, model_profile_id, stt_profile_id, model_name, api_key, base_url, user
+    raise HTTPException(status_code=410, detail="Synchronous upload generation is deprecated; use /api/generate_from_upload and poll /api/task/{task_id}.")
 
 
 def _run_task(task_id: str, req: NoteRequest, user_id: str | None):

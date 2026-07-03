@@ -72,6 +72,12 @@ class Settings:
     auth_cookie_domain: str = os.getenv("AUTH_COOKIE_DOMAIN", "")
     share_base_url: str = os.getenv("SHARE_BASE_URL", "").strip()
 
+    vilab_server_base_url: str = os.getenv("VILAB_SERVER_BASE_URL", "http://127.0.0.1:9876").strip()
+    vilab_server_api_key: str = os.getenv("VILAB_SERVER_API_KEY", "").strip()
+    vilab_server_client_id: str = os.getenv("VILAB_SERVER_CLIENT_ID", "").strip()
+    vilab_server_desktop_id: str = os.getenv("VILAB_SERVER_DESKTOP_ID", "").strip()
+    vilab_server_timeout_seconds: int = int(os.getenv("VILAB_SERVER_TIMEOUT_SECONDS", "300"))
+
     model_profile_encryption_key: str = os.getenv("MODEL_PROFILE_ENCRYPTION_KEY", "")
     azure_openai_api_version: str = os.getenv("AZURE_OPENAI_API_VERSION", "2024-10-21")
 
