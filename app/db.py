@@ -33,6 +33,7 @@ def init_db():
     Base.metadata.create_all(bind=engine)
     _ensure_note_share_columns()
     _ensure_note_workspace_columns()
+    _ensure_vilab_server_connection_table()
 
 
 def _ensure_note_share_columns():
@@ -88,6 +89,31 @@ def get_db():
         yield db
     finally:
         db.close()
+
+
+def _ensure_vilab_server_connection_table():
+    with engine.begin() as connection:
+        connection.exec_driver_sql(
+            """
+            CREATE TABLE IF NOT EXISTS vilab_server_connections (
+                id VARCHAR(36) PRIMARY KEY,
+                user_id VARCHAR(36) NOT NULL,
+                mode VARCHAR(16) NOT NULL DEFAULT 'local',
+                base_url VARCHAR(500) NOT NULL,
+                api_key_encrypted TEXT NOT NULL DEFAULT '',
+                status VARCHAR(32) NOT NULL DEFAULT 'untested',
+                version VARCHAR(100),
+                latency_ms INTEGER,
+                checked_at TIMESTAMP,
+                created_at TIMESTAMP,
+                updated_at TIMESTAMP,
+                UNIQUE(user_id)
+            )
+            """
+        )
+        connection.exec_driver_sql(
+            "CREATE INDEX IF NOT EXISTS ix_vilab_server_connections_user_id ON vilab_server_connections (user_id)"
+        )
 
 
 @contextmanager

@@ -25,8 +25,6 @@ interface SubmitMeetingRecordingInput {
   startedAt: Date
   outputLanguage?: string
   summaryMode: SummaryMode
-  modelProfileId?: string
-  sttProfileId?: string
 }
 
 interface SubmitMeetingRecordingDependencies {
@@ -67,8 +65,6 @@ export async function submitMeetingRecording(
     style: 'meeting',
     summaryMode: input.summaryMode,
     outputLanguage: input.outputLanguage,
-    modelProfileId: input.modelProfileId,
-    sttProfileId: input.sttProfileId,
   })
 }
 

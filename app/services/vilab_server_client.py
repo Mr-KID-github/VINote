@@ -79,6 +79,16 @@ class VILabServerClient:
             pass
         return f"VILab Server request failed with HTTP {response.status_code}"
 
+    def health(self) -> dict[str, Any]:
+        try:
+            response = self._request("GET", "/health")
+        except VILabServerClientError:
+            response = self._request("GET", "/healthz")
+        return response.json()
+
+    def list_models(self) -> dict[str, Any]:
+        return self._request("GET", "/v1/models").json()
+
     def create_video_url_run(
         self,
         *,

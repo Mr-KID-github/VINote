@@ -32,8 +32,6 @@ describe('meetingGeneration', () => {
         startedAt: new Date('2026-06-15T10:20:30.000Z'),
         outputLanguage: 'zh-CN',
         summaryMode: 'accurate',
-        modelProfileId: 'model-1',
-        sttProfileId: 'stt-1',
       },
       { submitUploadedSource },
     )
@@ -44,8 +42,6 @@ describe('meetingGeneration', () => {
       style: 'meeting',
       outputLanguage: 'zh-CN',
       summaryMode: 'accurate',
-      modelProfileId: 'model-1',
-      sttProfileId: 'stt-1',
     }))
     expect(submitUploadedSource.mock.calls[0][0].file.name).toBe('meeting-recording-2026-06-15-10-20-30.webm')
   })

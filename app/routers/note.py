@@ -343,13 +343,14 @@ def generate_note_sync(
 
 
 @router.get("/task/{task_id}", response_model=TaskStatusResponse)
-def get_task_status(task_id: str):
-    status_data = _note_service.get_status(task_id)
+def get_task_status(task_id: str, user: AuthenticatedUser | None = Depends(get_optional_current_user)):
+    user_id = user.user_id if user else None
+    status_data = _note_service.get_status(task_id, user_id=user_id)
     status = status_data.get("status", "not_found")
     message = status_data.get("message", "")
     result = None
     if status == "success":
-        result_data = _note_service.get_result(task_id)
+        result_data = _note_service.get_result(task_id, user_id=user_id)
         if result_data:
             result = NoteResponse(
                 task_id=task_id,
@@ -364,9 +365,9 @@ def get_task_status(task_id: str):
 
 
 @router.get("/task/{task_id}/artifacts/{asset_path:path}", include_in_schema=False)
-def get_task_artifact(task_id: str, asset_path: str):
+def get_task_artifact(task_id: str, asset_path: str, user: AuthenticatedUser | None = Depends(get_optional_current_user)):
     try:
-        body, content_type = _note_service.get_artifact(task_id, asset_path)
+        body, content_type = _note_service.get_artifact(task_id, asset_path, user_id=user.user_id if user else None)
     except Exception as exc:
         logger.error("[API] artifact proxy failed task_id=%s path=%s error=%s", task_id, asset_path, exc)
         raise HTTPException(status_code=404, detail="Artifact not found") from exc
@@ -374,9 +375,9 @@ def get_task_artifact(task_id: str, asset_path: str):
 
 
 @router.get("/styles")
-def get_styles():
+def get_styles(user: AuthenticatedUser | None = Depends(get_optional_current_user)):
     try:
-        styles = _note_service.list_styles()
+        styles = _note_service.list_styles(user_id=user.user_id if user else None)
     except Exception as exc:
         logger.error("[API] styles proxy failed: %s", exc, exc_info=True)
         raise HTTPException(status_code=502, detail=str(exc)) from exc

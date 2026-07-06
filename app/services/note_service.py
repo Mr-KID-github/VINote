@@ -14,11 +14,16 @@ from app.models.audio import AudioDownloadResult
 from app.models.note import NoteResult
 from app.models.transcript import TranscriptResult
 from app.services.vilab_server_client import VILabServerClient
+from app.services.vilab_server_connection_service import VILabServerConnectionService
 
 
 class NoteService:
-    def __init__(self, vilab_client: VILabServerClient | None = None, **_legacy_dependencies):
-        self.vilab_client = vilab_client or VILabServerClient()
+    def __init__(self, vilab_client: VILabServerClient | None = None, connection_service: VILabServerConnectionService | None = None, **_legacy_dependencies):
+        self._injected_client = vilab_client
+        self.connection_service = connection_service or VILabServerConnectionService()
+
+    def _client(self, user_id: str | None = None) -> VILabServerClient:
+        return self._injected_client or self.connection_service.resolve_client(user_id)
 
     def submit_video_url(
         self,
@@ -31,7 +36,7 @@ class NoteService:
         output_language: str | None = None,
         user_id: Optional[str] = None,
     ) -> dict:
-        return self.vilab_client.create_video_url_run(
+        return self._client(user_id).create_video_url_run(
             video_url=video_url,
             title=title,
             style=style,
@@ -55,7 +60,7 @@ class NoteService:
         user_id: Optional[str] = None,
     ) -> dict:
         resolved_pipeline = pipeline or ("meeting_minutes" if style == "meeting" else "media_summary")
-        return self.vilab_client.create_upload_run(
+        return self._client(user_id).create_upload_run(
             file_path=Path(file_path),
             source_type=source_type,
             pipeline=resolved_pipeline,
@@ -78,7 +83,7 @@ class NoteService:
         output_language: str | None = None,
         user_id: Optional[str] = None,
     ) -> dict:
-        return self.vilab_client.create_transcript_run(
+        return self._client(user_id).create_transcript_run(
             transcript=transcript,
             title=title,
             style=style,
@@ -105,16 +110,16 @@ class NoteService:
         run = self.submit_transcript(transcript=transcript, title=title, style=style, summary_mode=summary_mode, extras=extras, output_language=output_language, user_id=user_id)
         return self._wait_for_result(run["id"])
 
-    def get_status(self, task_id: str) -> dict:
-        run = self.vilab_client.get_run(task_id)
+    def get_status(self, task_id: str, user_id: str | None = None) -> dict:
+        run = self._client(user_id).get_run(task_id)
         return {
             "status": run.get("status", "not_found"),
             "message": (run.get("progress") or {}).get("message", ""),
             "run": run,
         }
 
-    def get_result(self, task_id: str) -> Optional[dict]:
-        run = self.vilab_client.get_run(task_id)
+    def get_result(self, task_id: str, user_id: str | None = None) -> Optional[dict]:
+        run = self._client(user_id).get_run(task_id)
         if run.get("status") != "success" or not run.get("result"):
             return None
         result = run["result"]
@@ -127,16 +132,16 @@ class NoteService:
             "summary_mode": result.get("summaryMode") or run.get("summaryMode") or "default",
         }
 
-    def get_artifact(self, task_id: str, asset_path: str) -> tuple[bytes, str]:
-        return self.vilab_client.get_artifact(task_id, asset_path)
+    def get_artifact(self, task_id: str, asset_path: str, user_id: str | None = None) -> tuple[bytes, str]:
+        return self._client(user_id).get_artifact(task_id, asset_path)
 
-    def list_styles(self) -> dict:
-        return self.vilab_client.list_styles()
+    def list_styles(self, user_id: str | None = None) -> dict:
+        return self._client(user_id).list_styles()
 
     def _wait_for_result(self, run_id: str, timeout_seconds: float = 300.0) -> NoteResult:
         deadline = time.time() + timeout_seconds
         while time.time() < deadline:
-            run = self.vilab_client.get_run(run_id)
+            run = self._client().get_run(run_id)
             if run.get("status") == "success" and run.get("result"):
                 result = run["result"]
                 audio_meta = AudioDownloadResult(

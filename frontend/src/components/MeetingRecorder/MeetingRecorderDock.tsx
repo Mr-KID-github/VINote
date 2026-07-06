@@ -7,9 +7,7 @@ import { useI18n } from '../../lib/i18n'
 import { completeMeetingRecordingGeneration, submitMeetingRecording } from '../../lib/meetingGeneration'
 import type { TaskStatusResponse } from '../../lib/noteGenerationClient'
 import { useMeetingRecorderStore, type MeetingRecorderPhase } from '../../stores/meetingRecorderStore'
-import { useModelProfileStore } from '../../stores/modelProfileStore'
 import { useNoteLibraryStore } from '../../stores/noteLibraryStore'
-import { useSTTProfileStore } from '../../stores/sttProfileStore'
 import { useTeamStore } from '../../stores/teamStore'
 
 const PANEL_WIDTH = 320
@@ -98,14 +96,6 @@ export function MeetingRecorderDock() {
   const { saveNote } = useNoteLibraryStore()
   const { currentWorkspace } = useTeamStore()
   const {
-    selectedProfileId: selectedModelProfileId,
-    loadProfiles: loadModelProfiles,
-  } = useModelProfileStore()
-  const {
-    selectedProfileId: selectedSTTProfileId,
-    loadProfiles: loadSTTProfiles,
-  } = useSTTProfileStore()
-  const {
     isPanelOpen,
     isMinimized,
     phase,
@@ -130,10 +120,6 @@ export function MeetingRecorderDock() {
   const startedAtRef = useRef<Date | null>(null)
   const finishInFlightRef = useRef(false)
 
-  useEffect(() => {
-    void loadModelProfiles()
-    void loadSTTProfiles()
-  }, [loadModelProfiles, loadSTTProfiles])
 
   useEffect(() => {
     setElapsedSeconds(recorder.elapsedSeconds)
@@ -239,8 +225,6 @@ export function MeetingRecorderDock() {
         startedAt: startedAtRef.current || new Date(),
         outputLanguage: language,
         summaryMode: 'default',
-        modelProfileId: selectedModelProfileId || undefined,
-        sttProfileId: selectedSTTProfileId || undefined,
       })
       setTaskId(response.task_id)
 

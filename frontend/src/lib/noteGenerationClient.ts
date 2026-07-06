@@ -27,8 +27,6 @@ export interface UploadGenerationInput {
   style?: string
   summaryMode: SummaryMode
   outputLanguage?: string
-  modelProfileId?: string
-  sttProfileId?: string
 }
 
 export async function submitUploadedSource(input: UploadGenerationInput) {
@@ -41,12 +39,6 @@ export async function submitUploadedSource(input: UploadGenerationInput) {
 
   if (input.outputLanguage) {
     formData.append('output_language', input.outputLanguage)
-  }
-  if (input.modelProfileId) {
-    formData.append('model_profile_id', input.modelProfileId)
-  }
-  if (input.sttProfileId) {
-    formData.append('stt_profile_id', input.sttProfileId)
   }
 
   return apiJson<TaskResponse>('/api/generate_from_upload', {

@@ -1,11 +1,10 @@
 import { useState } from 'react'
 import { Shield } from 'lucide-react'
 import { AppearanceSettingsPanel } from '../components/Settings/AppearanceSettingsPanel'
-import { ModelProfileManager } from '../components/Settings/ModelProfileManager'
+import { VILabServerSettingsPanel } from '../components/Settings/VILabServerSettingsPanel'
 import { NotificationSettingsPanel } from '../components/Settings/NotificationSettingsPanel'
 import { PlaceholderSettingsPanel } from '../components/Settings/PlaceholderSettingsPanel'
 import { ProfileSettingsPanel } from '../components/Settings/ProfileSettingsPanel'
-import { STTProfileManager } from '../components/Settings/STTProfileManager'
 import { SettingsNav, type SettingsTab } from '../components/Settings/SettingsNav'
 import { useI18n } from '../lib/i18n'
 import { useAuthStore } from '../stores/authStore'
@@ -26,12 +25,7 @@ export function Settings() {
 
         <div className="flex-1">
           {activeTab === 'profile' && <ProfileSettingsPanel email={user?.email} />}
-          {activeTab === 'models' && (
-            <div className="space-y-8">
-              <ModelProfileManager />
-              <STTProfileManager />
-            </div>
-          )}
+          {activeTab === 'models' && <VILabServerSettingsPanel />}
           {activeTab === 'team' && (
             <PlaceholderSettingsPanel
               icon={Shield}

@@ -1,15 +1,14 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ArrowLeft, Wand2 } from 'lucide-react'
+import { ArrowLeft, Server, Wand2 } from 'lucide-react'
 import { FileUploader, type UploadMode } from '../components/NoteGenerator/FileUploader'
 import { GenerateProgress } from '../components/NoteGenerator/GenerateProgress'
 import { useI18n } from '../lib/i18n'
 import { apiJson } from '../lib/api'
-import { useModelProfileStore } from '../stores/modelProfileStore'
 import { useNoteGenerationStore } from '../stores/noteGenerationStore'
 import { useNoteLibraryStore } from '../stores/noteLibraryStore'
-import { useSTTProfileStore } from '../stores/sttProfileStore'
 import { getWorkspaceLabel, useTeamStore } from '../stores/teamStore'
+import { useVILabServerStore } from '../stores/vilabServerStore'
 
 type TaskResponse = { task_id: string }
 type SummaryMode = 'default' | 'accurate' | 'oneshot'
@@ -45,20 +44,13 @@ export function NoteGenerator() {
   } = useNoteGenerationStore()
   const { saveNote } = useNoteLibraryStore()
   const { currentWorkspace, teams, loadTeams } = useTeamStore()
-  const { profiles, selectedProfileId, selectProfile, loadProfiles } = useModelProfileStore()
-  const {
-    profiles: sttProfiles,
-    selectedProfileId: selectedSTTProfileId,
-    selectProfile: selectSTTProfile,
-    loadProfiles: loadSTTProfiles,
-  } = useSTTProfileStore()
+  const { connection, loadConnection } = useVILabServerStore()
   const navigate = useNavigate()
 
   useEffect(() => {
-    void loadProfiles()
-    void loadSTTProfiles()
+    void loadConnection()
     void loadTeams()
-  }, [loadProfiles, loadSTTProfiles, loadTeams])
+  }, [loadConnection, loadTeams])
 
   useEffect(() => {
     reset()
@@ -124,6 +116,11 @@ export function NoteGenerator() {
   }
 
   const handleGenerate = async () => {
+    if (!connection || connection.status !== 'connected') {
+      setError('Connect a VILab Server before generating.')
+      return
+    }
+
     if ((uploadMode === 'url' && !videoUrl) || (uploadMode !== 'url' && !selectedFile)) {
       return
     }
@@ -153,8 +150,6 @@ export function NoteGenerator() {
             video_url: videoUrl,
             summary_mode: summaryMode,
             output_language: language,
-            model_profile_id: selectedProfileId || undefined,
-            stt_profile_id: selectedSTTProfileId || undefined,
           }),
         })
       } else {
@@ -174,12 +169,6 @@ export function NoteGenerator() {
         formData.append('title', selectedFile.name)
         formData.append('summary_mode', summaryMode)
         formData.append('output_language', language)
-        if (selectedProfileId) {
-          formData.append('model_profile_id', selectedProfileId)
-        }
-        if (selectedSTTProfileId) {
-          formData.append('stt_profile_id', selectedSTTProfileId)
-        }
 
         data = await apiJson<TaskResponse>('/api/generate_from_upload', {
           method: 'POST',
@@ -206,10 +195,6 @@ export function NoteGenerator() {
     reset()
   }
 
-  const selectedProfile = profiles.find((profile) => profile.id === selectedProfileId)
-  const defaultProfile = profiles.find((profile) => profile.isDefault)
-  const selectedSTTProfile = sttProfiles.find((profile) => profile.id === selectedSTTProfileId)
-  const defaultSTTProfile = sttProfiles.find((profile) => profile.isDefault)
   const workspaceLabel = getWorkspaceLabel(
     currentWorkspace,
     teams,
@@ -233,10 +218,7 @@ export function NoteGenerator() {
     },
   ]
   const selectedSummaryMode = summaryModeOptions.find((option) => option.value === summaryMode)
-  const formatSTTProfileLabel = (name: string, profile: { provider: string; modelName: string | null; language: string | null }) => {
-    const detail = profile.modelName || profile.language || profile.provider
-    return `${name} / ${detail}`
-  }
+  const vilabConnected = connection?.status === 'connected'
 
   return (
     <div className="max-w-2xl mx-auto p-8">
@@ -270,53 +252,24 @@ export function NoteGenerator() {
         </div>
 
         <div className="p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#202020]">
-          <label className="block text-sm font-medium mb-2">{copy.generator.modelProfileLabel}</label>
-          <select
-            value={selectedProfileId}
-            onChange={(event) => selectProfile(event.target.value)}
-            className="w-full px-4 py-2.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#191919] outline-none focus:ring-2 focus:ring-primary-light"
-          >
-            <option value="">{copy.generator.systemDefaultModel}</option>
-            {profiles.map((profile) => (
-              <option key={profile.id} value={profile.id}>
-                {profile.name} / {profile.modelName}
-                {profile.isDefault ? ' (default)' : ''}
-              </option>
-            ))}
-          </select>
-          <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
-            {copy.generator.activeModelPrefix}
-            {selectedProfile
-              ? copy.generator.activeModelSelected(selectedProfile.name, selectedProfile.modelName)
-              : defaultProfile
-                ? copy.generator.activeModelDefault(defaultProfile.name, defaultProfile.modelName)
-                : copy.generator.activeModelBackend}
-          </p>
-        </div>
-
-        <div className="p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#202020]">
-          <label className="block text-sm font-medium mb-2">{copy.generator.sttProfileLabel}</label>
-          <select
-            value={selectedSTTProfileId}
-            onChange={(event) => selectSTTProfile(event.target.value)}
-            className="w-full px-4 py-2.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#191919] outline-none focus:ring-2 focus:ring-primary-light"
-          >
-            <option value="">{copy.generator.systemDefaultSTT}</option>
-            {sttProfiles.map((profile) => (
-              <option key={profile.id} value={profile.id}>
-                {formatSTTProfileLabel(profile.name, profile)}
-                {profile.isDefault ? ' (default)' : ''}
-              </option>
-            ))}
-          </select>
-          <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
-            {copy.generator.activeSTTPrefix}
-            {selectedSTTProfile
-              ? copy.generator.activeSTTSelected(selectedSTTProfile.name, formatSTTProfileLabel(selectedSTTProfile.name, selectedSTTProfile))
-              : defaultSTTProfile
-                ? copy.generator.activeSTTDefault(defaultSTTProfile.name, formatSTTProfileLabel(defaultSTTProfile.name, defaultSTTProfile))
-                : copy.generator.activeSTTBackend}
-          </p>
+          <div className="flex items-start gap-3">
+            <Server className={vilabConnected ? 'mt-0.5 h-5 w-5 text-emerald-600' : 'mt-0.5 h-5 w-5 text-amber-600'} />
+            <div>
+              <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                {vilabConnected ? 'Using connected VILab Server' : 'Connect a VILab Server before generating'}
+              </p>
+              <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                {vilabConnected
+                  ? `${connection?.base_url || 'VILab Server'} handles ASR, LLM, and artifacts.`
+                  : 'Open Settings > Models to connect VINote to a local or remote VILab Server.'}
+              </p>
+              {!vilabConnected && (
+                <button type="button" onClick={() => navigate('/settings')} className="mt-3 text-sm font-medium text-blue-600 hover:text-blue-700">
+                  Go to Settings &gt; Models
+                </button>
+              )}
+            </div>
+          </div>
         </div>
 
         <div className="p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#202020]">
@@ -341,7 +294,7 @@ export function NoteGenerator() {
 
         <button
           onClick={() => void handleGenerate()}
-          disabled={status !== 'idle' || (uploadMode === 'url' ? !videoUrl : !selectedFile)}
+          disabled={!vilabConnected || status !== 'idle' || (uploadMode === 'url' ? !videoUrl : !selectedFile)}
           className="w-full flex items-center justify-center gap-2 py-3 px-6 bg-primary-light dark:bg-primary-dark text-white font-medium rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <Wand2 className="w-5 h-5" />

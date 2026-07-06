@@ -62,6 +62,13 @@ vi.mock('../stores/teamStore', async () => {
   }
 })
 
+vi.mock('../stores/vilabServerStore', () => ({
+  useVILabServerStore: () => ({
+    connection: { status: 'connected', base_url: 'http://127.0.0.1:9876' },
+    loadConnection: vi.fn(),
+  }),
+}))
+
 function renderGenerator() {
   return render(
     <I18nProvider>
@@ -101,5 +108,15 @@ describe('NoteGenerator failed generation recovery', () => {
       summary_mode: 'default',
       output_language: 'en',
     })
+    expect(JSON.parse(retryOptions.body)).not.toHaveProperty('model_profile_id')
+    expect(JSON.parse(retryOptions.body)).not.toHaveProperty('stt_profile_id')
+  })
+
+  it('does not render local model or STT profile selectors', () => {
+    renderGenerator()
+
+    expect(screen.queryByText('Model profile for this run')).not.toBeInTheDocument()
+    expect(screen.queryByText('STT profile for this run')).not.toBeInTheDocument()
+    expect(screen.getByText('Using connected VILab Server')).toBeInTheDocument()
   })
 })
