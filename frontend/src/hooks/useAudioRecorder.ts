@@ -27,7 +27,7 @@ export function useAudioRecorder() {
   const recorderRef = useRef<MediaRecorder | null>(null)
   const streamRef = useRef<MediaStream | null>(null)
   const chunksRef = useRef<Blob[]>([])
-  const timerRef = useRef<ReturnType<typeof window.setInterval> | null>(null)
+  const timerRef = useRef<number | null>(null)
   const timerStartedAtRef = useRef(0)
   const accumulatedMsRef = useRef(0)
   const mimeTypeRef = useRef('')
@@ -177,7 +177,7 @@ export function useAudioRecorder() {
 
     return new Promise<Blob>((resolve, reject) => {
       let settled = false
-      let fallbackTimer: ReturnType<typeof window.setTimeout> | null = null
+      let fallbackTimer: number | null = null
 
       const clearFallbackTimer = () => {
         if (fallbackTimer) {

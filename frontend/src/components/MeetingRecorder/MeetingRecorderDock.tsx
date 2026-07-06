@@ -54,7 +54,7 @@ function formatRecorderFailure(
   error: unknown,
   fallback: string,
   copy: {
-    modelConfigRequired: string
+    serverConnectionRequired: string
     microphoneDenied: string
     microphoneRestricted: string
     microphoneTimeout: string
@@ -70,7 +70,7 @@ function formatRecorderFailure(
     normalized.includes('unauthorized') ||
     normalized.includes('401')
   ) {
-    return copy.modelConfigRequired
+    return copy.serverConnectionRequired
   }
 
   if (normalized.includes('microphone_denied')) {

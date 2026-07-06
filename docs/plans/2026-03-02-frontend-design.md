@@ -124,11 +124,9 @@ shared_links: id, note_id, token, password, expires_at, created_at
 | 接口 | 用途 |
 |------|------|
 | POST /api/generate | 异步生成笔记 |
-| POST /api/generate_sync | 同步生成笔记 |
 | GET /api/task/{task_id} | 查询任务状态 |
 | GET /api/styles | 获取笔记风格 |
-| POST /api/generate_from_file | 从本地文件生成 |
-| POST /api/generate_from_file_sync | 同步本地文件生成 |
+| POST /api/generate_from_upload | 上传本地媒体或文字稿并生成 |
 
 ## 7. 实施阶段
 

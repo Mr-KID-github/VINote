@@ -72,25 +72,6 @@ class NoteDB(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, onupdate=utc_now)
 
 
-class ModelProfileDB(Base):
-    __tablename__ = "model_profiles"
-    __table_args__ = (
-        UniqueConstraint("user_id", "name", name="uq_model_profiles_user_name"),
-    )
-
-    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    user_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id", ondelete="CASCADE"), index=True)
-    name: Mapped[str] = mapped_column(String(100))
-    provider: Mapped[str] = mapped_column(String(64))
-    base_url: Mapped[str] = mapped_column(String(500))
-    model_name: Mapped[str] = mapped_column(String(200))
-    api_key_encrypted: Mapped[str] = mapped_column(Text)
-    is_default: Mapped[bool] = mapped_column(Boolean, default=False)
-    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, onupdate=utc_now)
-
-
 class VILabServerConnectionDB(Base):
     __tablename__ = "vilab_server_connections"
     __table_args__ = (
@@ -106,28 +87,5 @@ class VILabServerConnectionDB(Base):
     version: Mapped[str | None] = mapped_column(String(100), nullable=True)
     latency_ms: Mapped[int | None] = mapped_column(nullable=True)
     checked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, onupdate=utc_now)
-
-
-class STTProfileDB(Base):
-    __tablename__ = "stt_profiles"
-    __table_args__ = (
-        UniqueConstraint("user_id", "name", name="uq_stt_profiles_user_name"),
-    )
-
-    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    user_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id", ondelete="CASCADE"), index=True)
-    name: Mapped[str] = mapped_column(String(100))
-    provider: Mapped[str] = mapped_column(String(64))
-    model_name: Mapped[str | None] = mapped_column(String(200), nullable=True)
-    base_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
-    api_key_encrypted: Mapped[str | None] = mapped_column(Text, nullable=True)
-    language: Mapped[str | None] = mapped_column(String(50), nullable=True)
-    device: Mapped[str | None] = mapped_column(String(32), nullable=True)
-    compute_type: Mapped[str | None] = mapped_column(String(32), nullable=True)
-    use_gpu: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
-    is_default: Mapped[bool] = mapped_column(Boolean, default=False)
-    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, onupdate=utc_now)

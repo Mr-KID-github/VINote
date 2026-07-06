@@ -1267,7 +1267,7 @@ export function NoteGenerator() {
         const formData = new FormData()
         formData.append('file', selectedFile)
 
-        const response = await fetch(`${API_BASE}/api/generate_from_file_sync`, {
+        const response = await fetch(`${API_BASE}/api/generate_from_upload`, {
           method: 'POST',
           body: formData,
         })

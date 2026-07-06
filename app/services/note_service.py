@@ -1,9 +1,4 @@
-"""Server-backed note generation adapter.
-
-VINote no longer owns the outsourced ASR/LLM/download/screenshot/summary pipeline.
-It submits jobs to local or remote VILab Server and maps server responses to the
-legacy VINote API shapes while the frontend migrates.
-"""
+"""Server-backed note generation adapter."""
 from __future__ import annotations
 
 import time
@@ -18,7 +13,7 @@ from app.services.vilab_server_connection_service import VILabServerConnectionSe
 
 
 class NoteService:
-    def __init__(self, vilab_client: VILabServerClient | None = None, connection_service: VILabServerConnectionService | None = None, **_legacy_dependencies):
+    def __init__(self, vilab_client: VILabServerClient | None = None, connection_service: VILabServerConnectionService | None = None):
         self._injected_client = vilab_client
         self.connection_service = connection_service or VILabServerConnectionService()
 
@@ -93,20 +88,18 @@ class NoteService:
             user_id=user_id,
         )
 
-    # Legacy sync-style methods now delegate to VILab Server and poll briefly.
-    # They never execute local ASR/LLM/download/screenshot pipeline logic.
-    def generate(self, video_url: str, task_id: str, platform: str = "auto", style: str = "detailed", summary_mode: str = "default", extras: Optional[str] = None, output_language: str | None = None, model_profile_id: Optional[str] = None, stt_profile_id: Optional[str] = None, model_name: Optional[str] = None, api_key: Optional[str] = None, base_url: Optional[str] = None, user_id: Optional[str] = None) -> NoteResult:
-        del task_id, platform, model_profile_id, stt_profile_id, model_name, api_key, base_url
+    def generate(self, video_url: str, task_id: str, style: str = "detailed", summary_mode: str = "default", extras: Optional[str] = None, output_language: str | None = None, user_id: Optional[str] = None) -> NoteResult:
+        del task_id
         run = self.submit_video_url(video_url=video_url, style=style, summary_mode=summary_mode, extras=extras, output_language=output_language, user_id=user_id)
         return self._wait_for_result(run["id"])
 
-    def generate_from_file(self, file_path: str, task_id: str, title: Optional[str] = None, style: str = "meeting", summary_mode: str = "default", extras: Optional[str] = None, output_language: str | None = None, model_profile_id: Optional[str] = None, stt_profile_id: Optional[str] = None, model_name: Optional[str] = None, api_key: Optional[str] = None, base_url: Optional[str] = None, user_id: Optional[str] = None, source_type: str = "audio") -> NoteResult:
-        del task_id, model_profile_id, stt_profile_id, model_name, api_key, base_url
+    def generate_from_file(self, file_path: str, task_id: str, title: Optional[str] = None, style: str = "meeting", summary_mode: str = "default", extras: Optional[str] = None, output_language: str | None = None, user_id: Optional[str] = None, source_type: str = "audio") -> NoteResult:
+        del task_id
         run = self.submit_file(file_path=file_path, source_type=source_type, title=title, style=style, summary_mode=summary_mode, extras=extras, output_language=output_language, user_id=user_id)
         return self._wait_for_result(run["id"])
 
-    def generate_from_transcript(self, transcript: TranscriptResult, task_id: str, title: str | None = None, style: str = "meeting", summary_mode: str = "default", extras: Optional[str] = None, output_language: str | None = None, model_profile_id: Optional[str] = None, stt_profile_id: Optional[str] = None, model_name: str | None = None, api_key: str | None = None, base_url: str | None = None, user_id: Optional[str] = None) -> NoteResult:
-        del task_id, model_profile_id, stt_profile_id, model_name, api_key, base_url
+    def generate_from_transcript(self, transcript: TranscriptResult, task_id: str, title: str | None = None, style: str = "meeting", summary_mode: str = "default", extras: Optional[str] = None, output_language: str | None = None, user_id: Optional[str] = None) -> NoteResult:
+        del task_id
         run = self.submit_transcript(transcript=transcript, title=title, style=style, summary_mode=summary_mode, extras=extras, output_language=output_language, user_id=user_id)
         return self._wait_for_result(run["id"])
 

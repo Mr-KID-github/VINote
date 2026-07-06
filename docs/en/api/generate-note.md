@@ -10,9 +10,4 @@ Common async endpoints:
 - `POST /api/generate`
 - `POST /api/generate_from_upload`
 
-Common sync endpoints:
-
-- `POST /api/generate_sync`
-- `POST /api/generate_from_upload_sync`
-
-Use JSON for URL input. Use `multipart/form-data` for local media or transcript uploads. When `source_type=transcript`, the backend skips STT and moves straight into summarization.
+Use JSON for URL input. Use `multipart/form-data` for local media or transcript uploads. VINote submits all generation work to VILab Server and returns a task ID for polling.

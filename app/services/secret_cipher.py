@@ -11,14 +11,14 @@ from app.config import settings
 class SecretCipher:
     def __init__(self, key: str | None = None):
         self._fernet: Optional[Fernet] = None
-        secret = key if key is not None else settings.model_profile_encryption_key
+        secret = key if key is not None else settings.secret_encryption_key
         if secret:
             digest = hashlib.sha256(secret.encode("utf-8")).digest()
             self._fernet = Fernet(base64.urlsafe_b64encode(digest))
 
     def _require_encryption(self):
         if not self._fernet:
-            raise HTTPException(status_code=500, detail="MODEL_PROFILE_ENCRYPTION_KEY is not configured")
+            raise HTTPException(status_code=500, detail="SECRET_ENCRYPTION_KEY is not configured")
 
     def encrypt(self, value: str) -> str:
         self._require_encryption()

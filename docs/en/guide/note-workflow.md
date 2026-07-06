@@ -7,16 +7,15 @@ description: End-to-end lifecycle from a URL, local media file, or transcript to
 
 ## Input modes
 
-- Video URL: the backend downloads the remote media and runs the normal transcription pipeline
-- Local audio/video: the browser uploads media with `multipart/form-data`, then the backend transcribes it
-- Local transcript: the browser uploads `TXT`, `MD`, `SRT`, `VTT`, or `JSON`, and the backend skips STT
+- Video URL: VINote submits it to VILab Server for download, transcription, and summarization
+- Local audio/video: the browser uploads media with `multipart/form-data`, then VILab Server processes it
+- Local transcript: the browser uploads `TXT`, `MD`, `SRT`, `VTT`, or `JSON`, then VINote submits it to VILab Server's transcript flow
 
 ## Lifecycle
 
 1. Submit a URL, local media, or transcript generation request
-2. Create a task directory under `output/`
-3. Download remote media, stage the uploaded file, or parse the uploaded transcript
-4. Transcribe media input or skip STT for transcript-first input
-5. Generate Markdown with the configured model
-6. Inject key moments, timestamps, and screenshots when source media is available
-7. Persist artifacts and save the note record
+2. Proxy the request to the configured VILab Server
+3. Let VILab Server download, transcribe, summarize, and generate artifacts
+4. Poll the VILab Server task through VINote
+5. Show key moments, timestamps, screenshots, and media artifacts returned by the server
+6. Persist artifacts and save the note record

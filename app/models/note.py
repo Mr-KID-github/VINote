@@ -15,16 +15,10 @@ SummaryMode = Literal["default", "accurate", "oneshot"]
 
 class NoteRequest(BaseModel):
     video_url: str
-    platform: str = "auto"
     style: Optional[str] = "detailed"
     summary_mode: SummaryMode = "default"
     extras: Optional[str] = None
     output_language: Optional[OutputLanguage] = None
-    model_profile_id: Optional[str] = None
-    stt_profile_id: Optional[str] = None
-    model_name: Optional[str] = None
-    api_key: Optional[str] = None
-    base_url: Optional[str] = None
 
 
 class LocalFileRequest(BaseModel):
@@ -34,11 +28,6 @@ class LocalFileRequest(BaseModel):
     summary_mode: SummaryMode = "default"
     extras: Optional[str] = None
     output_language: Optional[OutputLanguage] = None
-    model_profile_id: Optional[str] = None
-    stt_profile_id: Optional[str] = None
-    model_name: Optional[str] = None
-    api_key: Optional[str] = None
-    base_url: Optional[str] = None
 
 
 class NoteResponse(BaseModel):

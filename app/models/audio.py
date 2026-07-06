@@ -14,4 +14,4 @@ class AudioDownloadResult:
     video_id: str                   # 视频唯一 ID
     platform: str                   # 来源平台 (youtube / bilibili / local)
     cover_url: Optional[str] = None # 封面图 URL
-    raw_info: dict = field(default_factory=dict)  # yt-dlp 原始 info
+    raw_info: dict = field(default_factory=dict)

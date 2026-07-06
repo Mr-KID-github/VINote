@@ -9,7 +9,7 @@ from app.db import init_db
 
 
 def create_app() -> FastAPI:
-    from app.routers import auth, mcp, model_profiles, note, note_library, preferences, share, stt_profiles, teams, vilab_server
+    from app.routers import auth, mcp, note, note_library, preferences, share, teams, vilab_server
 
     app = FastAPI(
         title="VINote",
@@ -38,8 +38,6 @@ def create_app() -> FastAPI:
     app.include_router(note_library.router, prefix="/api")
     app.include_router(share.private_router, prefix="/api")
     app.include_router(preferences.router, prefix="/api")
-    app.include_router(model_profiles.router, prefix="/api")
-    app.include_router(stt_profiles.router, prefix="/api")
     app.include_router(vilab_server.router, prefix="/api")
     app.include_router(teams.router, prefix="/api")
     app.include_router(mcp.router)

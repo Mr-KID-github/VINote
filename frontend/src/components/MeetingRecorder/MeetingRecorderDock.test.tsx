@@ -47,20 +47,6 @@ vi.mock('../../stores/languageStore', () => ({
   }),
 }))
 
-vi.mock('../../stores/modelProfileStore', () => ({
-  useModelProfileStore: () => ({
-    selectedProfileId: '',
-    loadProfiles: vi.fn(),
-  }),
-}))
-
-vi.mock('../../stores/sttProfileStore', () => ({
-  useSTTProfileStore: () => ({
-    selectedProfileId: '',
-    loadProfiles: vi.fn(),
-  }),
-}))
-
 vi.mock('../../stores/teamStore', () => ({
   useTeamStore: () => ({
     currentWorkspace: { scope: 'personal' },
@@ -150,7 +136,7 @@ describe('MeetingRecorderDock', () => {
     expect(navigate).toHaveBeenCalledWith('/note/note-1')
   })
 
-  it('explains model configuration failures from the generation API', async () => {
+  it('explains server connection failures from the generation API', async () => {
     meetingGenerationMock.completeMeetingRecordingGeneration.mockRejectedValue(
       new Error('Error code: 401 - invalid_api_key'),
     )
@@ -159,6 +145,6 @@ describe('MeetingRecorderDock', () => {
     await userEvent.click(screen.getByRole('button', { name: '开始会议录音' }))
     await userEvent.click(screen.getByRole('button', { name: '结束' }))
 
-    expect(await screen.findAllByText('请先配置可用的 LLM 和 STT API Key，再生成会议纪要。')).not.toHaveLength(0)
+    expect(await screen.findAllByText('请先配置可用的 VILab Server 连接，再生成会议纪要。')).not.toHaveLength(0)
   })
 })

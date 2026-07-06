@@ -16,14 +16,14 @@ Current stack:
 
 ## Core capabilities
 
-- Generate structured Markdown notes from video URLs, local audio/video files, or local transcript files
-- Record meetings from a minimalist in-app floating recorder, then automatically transcribe and summarize them
-- Skip the STT step when a transcript is already available
+- Generate structured Markdown notes from video URLs, local audio/video files, or local transcript files through VILab Server
+- Record meetings from a minimalist in-app floating recorder, then delegate transcription and summarization to VILab Server
+- Send transcript-first inputs directly to VILab Server
 - Support multiple summary modes: `default`, `accurate`, `oneshot`
-- Add key moments, timestamp jumps, and screenshots
+- Show key moments, timestamp jumps, screenshots, and artifacts returned by VILab Server
 - Save notes and continue editing in the built-in editor
 - Support public read-only share links
-- Support LLM and STT profile management
+- Configure a local or remote VILab Server connection
 - Expose both a standalone docs site and FastAPI Swagger / ReDoc
 - Provide bilingual docs: Simplified Chinese by default, English under `/en/`
 
@@ -70,12 +70,6 @@ Backend:
 pip install -r requirements.txt
 cp .env.example .env
 python main.py
-```
-
-Optional local transcriber dependencies:
-
-```bash
-pip install -r requirements.local-transcribers.txt
 ```
 
 Reload mode:

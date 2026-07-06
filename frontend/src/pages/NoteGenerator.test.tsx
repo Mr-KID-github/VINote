@@ -26,24 +26,6 @@ vi.mock('../stores/languageStore', () => ({
   }),
 }))
 
-vi.mock('../stores/modelProfileStore', () => ({
-  useModelProfileStore: () => ({
-    profiles: [],
-    selectedProfileId: '',
-    selectProfile: vi.fn(),
-    loadProfiles: vi.fn(),
-  }),
-}))
-
-vi.mock('../stores/sttProfileStore', () => ({
-  useSTTProfileStore: () => ({
-    profiles: [],
-    selectedProfileId: '',
-    selectProfile: vi.fn(),
-    loadProfiles: vi.fn(),
-  }),
-}))
-
 vi.mock('../stores/noteLibraryStore', () => ({
   useNoteLibraryStore: () => ({
     saveNote: vi.fn(),
@@ -108,15 +90,11 @@ describe('NoteGenerator failed generation recovery', () => {
       summary_mode: 'default',
       output_language: 'en',
     })
-    expect(JSON.parse(retryOptions.body)).not.toHaveProperty('model_profile_id')
-    expect(JSON.parse(retryOptions.body)).not.toHaveProperty('stt_profile_id')
   })
 
-  it('does not render local model or STT profile selectors', () => {
+  it('renders server-backed generation state', () => {
     renderGenerator()
 
-    expect(screen.queryByText('Model profile for this run')).not.toBeInTheDocument()
-    expect(screen.queryByText('STT profile for this run')).not.toBeInTheDocument()
     expect(screen.getByText('Using connected VILab Server')).toBeInTheDocument()
   })
 })

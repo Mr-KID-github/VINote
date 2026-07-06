@@ -1,20 +1,17 @@
 """
 Note generation API routes.
 """
-import json
 import logging
 import re
 import uuid
 from pathlib import Path
 
-from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from fastapi.responses import Response
 
 from app.config import settings
-from app.llm.prompts import STYLE_MAP
 from app.models.auth import AuthenticatedUser
 from app.models.note import LocalFileRequest, NoteRequest, NoteResponse, SummaryMode, TaskStatusResponse
-from app.models.transcript import TranscriptResult, TranscriptSegment
 from app.services.auth_service import get_current_user
 from app.services.note_service import NoteService
 
@@ -48,20 +45,6 @@ _ALLOWED_MEDIA_EXTENSIONS = {
     ".wmv",
 }
 _ALLOWED_TRANSCRIPT_EXTENSIONS = {".txt", ".vtt", ".srt", ".json", ".md"}
-
-
-def _coerce_float(value, default: float = 0.0) -> float:
-    try:
-        return float(value)
-    except (TypeError, ValueError):
-        return default
-
-
-def _coerce_string(value, default: str = "") -> str:
-    if value is None:
-        return default
-    text = str(value).strip()
-    return text or default
 
 
 def _normalize_source_type(value: str | None) -> str:
@@ -123,198 +106,11 @@ def _ensure_transcript_extension(filename: str | None):
         raise ValueError(f"Unsupported transcript format: {ext}")
 
 
-def _parse_timestamp(value: str) -> float:
-    normalized = value.strip().replace(",", ".")
-    if not normalized:
-        return 0.0
-    parts = normalized.split(":")
-    if len(parts) == 3:
-        hours = float(parts[0])
-        minutes = float(parts[1])
-        seconds = float(parts[2])
-        return max(0.0, hours * 3600 + minutes * 60 + seconds)
-    if len(parts) == 2:
-        minutes = float(parts[0])
-        seconds = float(parts[1])
-        return max(0.0, minutes * 60 + seconds)
-    return float(normalized)
-
-
-def _parse_timestamped_segments(raw_text: str) -> list[TranscriptSegment]:
-    segments: list[TranscriptSegment] = []
-    lines = raw_text.replace("\r\n", "\n").split("\n")
-    index = 0
-    while index < len(lines):
-        line = lines[index].strip()
-        if not line:
-            index += 1
-            continue
-        if line.isdigit():
-            index += 1
-            if index >= len(lines):
-                break
-            line = lines[index].strip()
-            if not line:
-                continue
-        if "-->" not in line:
-            index += 1
-            continue
-
-        try:
-            start_text, end_text = [part.strip() for part in line.split("-->", 1)]
-            start_text = start_text.split(" ", 1)[0].strip()
-            end_text = end_text.split(" ", 1)[0].strip()
-            start = _parse_timestamp(start_text)
-            end = _parse_timestamp(end_text)
-        except ValueError:
-            index += 1
-            continue
-
-        index += 1
-        text_lines: list[str] = []
-        while index < len(lines):
-            current = lines[index].strip()
-            if not current:
-                break
-            if current.startswith("NOTE") and " --> " not in current:
-                break
-            text_lines.append(current)
-            index += 1
-
-        text = " ".join(text_lines).strip()
-        if text:
-            if end < start:
-                end = start
-            segments.append(TranscriptSegment(start=start, end=end, text=text))
-        index += 1
-    return segments
-
-
-def _build_transcript_segments(segment_values: list[object]) -> list[TranscriptSegment]:
-    segments: list[TranscriptSegment] = []
-    for segment_value in segment_values:
-        if not isinstance(segment_value, dict):
-            continue
-        text = _coerce_string(segment_value.get("text"), "")
-        if not text:
-            continue
-        start = _coerce_float(segment_value.get("start"), 0.0)
-        end = _coerce_float(segment_value.get("end"), start)
-        if end < start:
-            end = start
-        segments.append(TranscriptSegment(start=start, end=end, text=text))
-    return segments
-
-
-def _build_transcript_from_json(raw_text: str, filename: str | None) -> TranscriptResult:
-    data = json.loads(raw_text)
-    language: str | None = None
-    segments: list[TranscriptSegment] = []
-    full_text = ""
-
-    if isinstance(data, dict):
-        language = _coerce_string(data.get("language"), "") or None
-        segment_values = data.get("segments")
-        if isinstance(segment_values, list):
-            segments = _build_transcript_segments(segment_values)
-            if "full_text" in data:
-                full_text = _coerce_string(data.get("full_text"), "")
-        elif "text" in data and isinstance(data.get("text"), str):
-            full_text = _coerce_string(data.get("text"), "")
-    elif isinstance(data, list):
-        segments = _build_transcript_segments(data)
-        full_text = " ".join(segment.text for segment in segments)
-    else:
-        raise ValueError("Invalid JSON transcript format.")
-
-    if not full_text:
-        full_text = "\n".join(segment.text for segment in segments)
-    if not segments and not full_text:
-        raise ValueError("No transcript segments found in JSON.")
-    if not full_text and not segments:
-        raise ValueError("JSON transcript is empty.")
-
-    return TranscriptResult(language=language, full_text=full_text, segments=segments)
-
-
-def _build_transcript_from_text(raw_text: str) -> TranscriptResult:
-    content = raw_text.strip()
-    if not content:
-        raise ValueError("Transcript file is empty.")
-    segment = TranscriptSegment(start=0.0, end=0.0, text=content)
-    return TranscriptResult(language=None, full_text=content, segments=[segment])
-
-
-def _build_transcript_from_upload(file_name: str | None, file_bytes: bytes) -> TranscriptResult:
-    raw_text = file_bytes.decode("utf-8", errors="replace").strip()
-    if not raw_text:
-        raise ValueError("Uploaded transcript is empty.")
-
-    ext = Path(file_name or "").suffix.lower()
-    if ext == ".json":
-        try:
-            return _build_transcript_from_json(raw_text, file_name)
-        except json.JSONDecodeError as exc:
-            raise ValueError(f"Invalid JSON transcript: {exc}") from exc
-
-    if ext in {".srt", ".vtt"}:
-        segments = _parse_timestamped_segments(raw_text)
-        if not segments:
-            raise ValueError("No timestamped segments found in subtitle file.")
-        return TranscriptResult(
-            language="en",
-            full_text="\n".join(segment.text for segment in segments),
-            segments=segments,
-        )
-
-    # Try best-effort subtitle parsing for .txt with SRT-like blocks.
-    segments = _parse_timestamped_segments(raw_text)
-    if segments:
-        return TranscriptResult(
-            language="en",
-            full_text="\n".join(segment.text for segment in segments),
-            segments=segments,
-        )
-
-    return _build_transcript_from_text(raw_text)
-
-
-def _build_note_request_fields(
-    *,
-    file_path: str,
-    title: str | None,
-    style: str | None,
-    summary_mode: str,
-    extras: str | None,
-    output_language: str | None,
-    model_profile_id: str | None,
-    stt_profile_id: str | None,
-    model_name: str | None,
-    api_key: str | None,
-    base_url: str | None,
-) -> LocalFileRequest:
-    return LocalFileRequest(
-        file_path=file_path,
-        title=title,
-        style=style or "meeting",
-        summary_mode=summary_mode,
-        extras=extras,
-        output_language=output_language,
-        model_profile_id=model_profile_id,
-        stt_profile_id=stt_profile_id,
-        model_name=model_name,
-        api_key=api_key,
-        base_url=base_url,
-    )
-
-
 @router.post("/generate")
 def generate_note_async(
     req: NoteRequest,
-    background_tasks: BackgroundTasks,
     user: AuthenticatedUser = Depends(get_current_user),
 ):
-    del background_tasks
     try:
         run = _note_service.submit_video_url(
             video_url=req.video_url,
@@ -328,18 +124,6 @@ def generate_note_async(
         logger.error("[API] generate failed to submit VILab Server run: %s", exc, exc_info=True)
         raise HTTPException(status_code=502, detail=str(exc)) from exc
     return {"task_id": run["id"], "status": run.get("status", "pending"), "message": "Task submitted to VILab Server"}
-
-
-@router.post("/generate_sync", response_model=NoteResponse)
-def generate_note_sync(
-    req: NoteRequest,
-    user: AuthenticatedUser = Depends(get_current_user),
-):
-    del req, user
-    raise HTTPException(
-        status_code=410,
-        detail="Synchronous local note generation is deprecated. Use /api/generate and poll /api/task/{task_id}; VINote now delegates pipeline work to VILab Server.",
-    )
 
 
 @router.get("/task/{task_id}", response_model=TaskStatusResponse)
@@ -387,10 +171,8 @@ def get_styles(user: AuthenticatedUser = Depends(get_current_user)):
 @router.post("/generate_from_file", response_model=dict)
 def generate_from_file_async(
     req: LocalFileRequest,
-    background_tasks: BackgroundTasks,
     user: AuthenticatedUser = Depends(get_current_user),
 ):
-    del background_tasks
     try:
         run = _note_service.submit_file(
             file_path=req.file_path,
@@ -408,18 +190,8 @@ def generate_from_file_async(
     return {"task_id": run["id"], "status": run.get("status", "pending"), "message": "Task submitted to VILab Server"}
 
 
-@router.post("/generate_from_file_sync", response_model=NoteResponse)
-def generate_from_file_sync(
-    req: LocalFileRequest,
-    user: AuthenticatedUser = Depends(get_current_user),
-):
-    del req, user
-    raise HTTPException(status_code=410, detail="Synchronous local file generation is deprecated; use async server-backed generation.")
-
-
 @router.post("/generate_from_upload", response_model=dict)
 async def generate_from_upload(
-    background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     source_type: str = Form("media"),
     title: str | None = Form(None),
@@ -427,11 +199,6 @@ async def generate_from_upload(
     summary_mode: str = Form("default"),
     extras: str | None = Form(None),
     output_language: str | None = Form(None),
-    model_profile_id: str | None = Form(None),
-    stt_profile_id: str | None = Form(None),
-    model_name: str | None = Form(None),
-    api_key: str | None = Form(None),
-    base_url: str | None = Form(None),
     user: AuthenticatedUser = Depends(get_current_user),
 ):
     try:
@@ -467,100 +234,3 @@ async def generate_from_upload(
     except Exception as exc:
         logger.error("[API] generate_from_upload failed: %s", exc, exc_info=True)
         raise HTTPException(status_code=500, detail=str(exc)) from exc
-
-
-@router.post("/generate_from_upload_sync", response_model=NoteResponse)
-async def generate_from_upload_sync(
-    file: UploadFile = File(...),
-    source_type: str = Form("media"),
-    title: str | None = Form(None),
-    style: str | None = Form("meeting"),
-    summary_mode: str = Form("default"),
-    extras: str | None = Form(None),
-    output_language: str | None = Form(None),
-    model_profile_id: str | None = Form(None),
-    stt_profile_id: str | None = Form(None),
-    model_name: str | None = Form(None),
-    api_key: str | None = Form(None),
-    base_url: str | None = Form(None),
-    user: AuthenticatedUser = Depends(get_current_user),
-):
-    del file, source_type, title, style, summary_mode, extras, output_language, model_profile_id, stt_profile_id, model_name, api_key, base_url, user
-    raise HTTPException(status_code=410, detail="Synchronous upload generation is deprecated; use /api/generate_from_upload and poll /api/task/{task_id}.")
-
-
-def _run_task(task_id: str, req: NoteRequest, user_id: str | None):
-    try:
-        _note_service.generate(
-            video_url=req.video_url,
-            task_id=task_id,
-            platform=req.platform,
-            style=req.style or "detailed",
-            summary_mode=req.summary_mode,
-            extras=req.extras,
-            output_language=req.output_language,
-            model_profile_id=req.model_profile_id,
-            stt_profile_id=req.stt_profile_id,
-            model_name=req.model_name,
-            api_key=req.api_key,
-            base_url=req.base_url,
-            user_id=user_id,
-        )
-    except Exception as exc:
-        logger.error("[Background] task failed task_id=%s error=%s", task_id, exc, exc_info=True)
-
-
-def _run_task_from_file(task_id: str, req: LocalFileRequest, user_id: str | None):
-    try:
-        _note_service.generate_from_file(
-            file_path=req.file_path,
-            task_id=task_id,
-            title=req.title,
-            style=req.style or "meeting",
-            summary_mode=req.summary_mode,
-            extras=req.extras,
-            output_language=req.output_language,
-            model_profile_id=req.model_profile_id,
-            stt_profile_id=req.stt_profile_id,
-            model_name=req.model_name,
-            api_key=req.api_key,
-            base_url=req.base_url,
-            user_id=user_id,
-        )
-    except Exception as exc:
-        logger.error("[Background] local task failed task_id=%s error=%s", task_id, exc, exc_info=True)
-
-
-def _run_task_from_transcript(
-    task_id: str,
-    transcript: TranscriptResult,
-    title: str | None,
-    style: str,
-    summary_mode: str,
-    extras: str | None,
-    output_language: str | None,
-    model_profile_id: str | None,
-    stt_profile_id: str | None,
-    model_name: str | None,
-    api_key: str | None,
-    base_url: str | None,
-    user_id: str | None,
-):
-    try:
-        _note_service.generate_from_transcript(
-            transcript=transcript,
-            task_id=task_id,
-            title=title,
-            style=style,
-            summary_mode=summary_mode,
-            extras=extras,
-            output_language=output_language,
-            model_profile_id=model_profile_id,
-            stt_profile_id=stt_profile_id,
-            model_name=model_name,
-            api_key=api_key,
-            base_url=base_url,
-            user_id=user_id,
-        )
-    except Exception as exc:
-        logger.error("[Background] transcript task failed task_id=%s error=%s", task_id, exc, exc_info=True)
