@@ -1,55 +1,53 @@
-from fastapi import APIRouter, Depends, Response, status
-
-from app.models.auth import AuthenticatedUser
-from app.models.model_profile import (
-    ModelProfileCreateRequest,
-    ModelProfileResponse,
-    ModelProfileTestRequest,
-    ModelProfileTestResponse,
-    ModelProfileUpdateRequest,
-)
-from app.services.auth_service import get_current_user
-from app.services.model_profile_service import ModelProfileService
+from fastapi import APIRouter, Response, status
 
 router = APIRouter(tags=["model-profiles"])
-_service = ModelProfileService()
+DEPRECATION_HEADER = "VINote local LLM model profiles are deprecated; connect VILab Server via /api/vilab-server/connection."
 
 
-@router.get("/model-profiles", response_model=list[ModelProfileResponse])
-def list_model_profiles(user: AuthenticatedUser = Depends(get_current_user)):
-    return _service.list_profiles(user.user_id)
+def _gone(response: Response):
+    response.headers["Deprecation"] = "true"
+    response.headers["X-VINote-Deprecated"] = DEPRECATION_HEADER
+    response.status_code = status.HTTP_410_GONE
+    return {
+        "detail": DEPRECATION_HEADER,
+        "replacement": "/api/vilab-server/connection",
+    }
 
 
-@router.post("/model-profiles", response_model=ModelProfileResponse, status_code=status.HTTP_201_CREATED)
-def create_model_profile(payload: ModelProfileCreateRequest, user: AuthenticatedUser = Depends(get_current_user)):
-    return _service.create_profile(user.user_id, payload)
+@router.get("/model-profiles", status_code=status.HTTP_410_GONE)
+def list_model_profiles(response: Response):
+    return _gone(response)
 
 
-@router.patch("/model-profiles/{profile_id}", response_model=ModelProfileResponse)
-def update_model_profile(
-    profile_id: str,
-    payload: ModelProfileUpdateRequest,
-    user: AuthenticatedUser = Depends(get_current_user),
-):
-    return _service.update_profile(user.user_id, profile_id, payload)
+@router.post("/model-profiles", status_code=status.HTTP_410_GONE)
+def create_model_profile(response: Response):
+    return _gone(response)
 
 
-@router.delete("/model-profiles/{profile_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_model_profile(profile_id: str, user: AuthenticatedUser = Depends(get_current_user)):
-    _service.delete_profile(user.user_id, profile_id)
-    return Response(status_code=status.HTTP_204_NO_CONTENT)
+@router.patch("/model-profiles/{profile_id}", status_code=status.HTTP_410_GONE)
+def update_model_profile(profile_id: str, response: Response):
+    del profile_id
+    return _gone(response)
 
 
-@router.post("/model-profiles/{profile_id}/set-default", response_model=ModelProfileResponse)
-def set_default_model_profile(profile_id: str, user: AuthenticatedUser = Depends(get_current_user)):
-    return _service.set_default_profile(user.user_id, profile_id)
+@router.delete("/model-profiles/{profile_id}", status_code=status.HTTP_410_GONE)
+def delete_model_profile(profile_id: str, response: Response):
+    del profile_id
+    return _gone(response)
 
 
-@router.post("/model-profiles/test", response_model=ModelProfileTestResponse)
-def test_model_profile(payload: ModelProfileTestRequest, user: AuthenticatedUser = Depends(get_current_user)):
-    return _service.test_connection(payload)
+@router.post("/model-profiles/{profile_id}/set-default", status_code=status.HTTP_410_GONE)
+def set_default_model_profile(profile_id: str, response: Response):
+    del profile_id
+    return _gone(response)
 
 
-@router.post("/model-profiles/{profile_id}/test", response_model=ModelProfileTestResponse)
-def test_saved_model_profile(profile_id: str, user: AuthenticatedUser = Depends(get_current_user)):
-    return _service.test_saved_profile(user.user_id, profile_id)
+@router.post("/model-profiles/test", status_code=status.HTTP_410_GONE)
+def test_model_profile(response: Response):
+    return _gone(response)
+
+
+@router.post("/model-profiles/{profile_id}/test", status_code=status.HTTP_410_GONE)
+def test_saved_model_profile(profile_id: str, response: Response):
+    del profile_id
+    return _gone(response)

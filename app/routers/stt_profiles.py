@@ -1,39 +1,42 @@
-from fastapi import APIRouter, Depends, Response, status
-
-from app.models.auth import AuthenticatedUser
-from app.models.stt_profile import STTProfileCreateRequest, STTProfileResponse, STTProfileUpdateRequest
-from app.services.auth_service import get_current_user
-from app.services.stt_profile_service import STTProfileService
+from fastapi import APIRouter, Response, status
 
 router = APIRouter(tags=["stt-profiles"])
-_service = STTProfileService()
+DEPRECATION_HEADER = "VINote local STT profiles are deprecated; connect VILab Server via /api/vilab-server/connection."
 
 
-@router.get("/stt-profiles", response_model=list[STTProfileResponse])
-def list_stt_profiles(user: AuthenticatedUser = Depends(get_current_user)):
-    return _service.list_profiles(user.user_id)
+def _gone(response: Response):
+    response.headers["Deprecation"] = "true"
+    response.headers["X-VINote-Deprecated"] = DEPRECATION_HEADER
+    response.status_code = status.HTTP_410_GONE
+    return {
+        "detail": DEPRECATION_HEADER,
+        "replacement": "/api/vilab-server/connection",
+    }
 
 
-@router.post("/stt-profiles", response_model=STTProfileResponse, status_code=status.HTTP_201_CREATED)
-def create_stt_profile(payload: STTProfileCreateRequest, user: AuthenticatedUser = Depends(get_current_user)):
-    return _service.create_profile(user.user_id, payload)
+@router.get("/stt-profiles", status_code=status.HTTP_410_GONE)
+def list_stt_profiles(response: Response):
+    return _gone(response)
 
 
-@router.patch("/stt-profiles/{profile_id}", response_model=STTProfileResponse)
-def update_stt_profile(
-    profile_id: str,
-    payload: STTProfileUpdateRequest,
-    user: AuthenticatedUser = Depends(get_current_user),
-):
-    return _service.update_profile(user.user_id, profile_id, payload)
+@router.post("/stt-profiles", status_code=status.HTTP_410_GONE)
+def create_stt_profile(response: Response):
+    return _gone(response)
 
 
-@router.delete("/stt-profiles/{profile_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_stt_profile(profile_id: str, user: AuthenticatedUser = Depends(get_current_user)):
-    _service.delete_profile(user.user_id, profile_id)
-    return Response(status_code=status.HTTP_204_NO_CONTENT)
+@router.patch("/stt-profiles/{profile_id}", status_code=status.HTTP_410_GONE)
+def update_stt_profile(profile_id: str, response: Response):
+    del profile_id
+    return _gone(response)
 
 
-@router.post("/stt-profiles/{profile_id}/set-default", response_model=STTProfileResponse)
-def set_default_stt_profile(profile_id: str, user: AuthenticatedUser = Depends(get_current_user)):
-    return _service.set_default_profile(user.user_id, profile_id)
+@router.delete("/stt-profiles/{profile_id}", status_code=status.HTTP_410_GONE)
+def delete_stt_profile(profile_id: str, response: Response):
+    del profile_id
+    return _gone(response)
+
+
+@router.post("/stt-profiles/{profile_id}/set-default", status_code=status.HTTP_410_GONE)
+def set_default_stt_profile(profile_id: str, response: Response):
+    del profile_id
+    return _gone(response)

@@ -15,7 +15,7 @@ from app.llm.prompts import STYLE_MAP
 from app.models.auth import AuthenticatedUser
 from app.models.note import LocalFileRequest, NoteRequest, NoteResponse, SummaryMode, TaskStatusResponse
 from app.models.transcript import TranscriptResult, TranscriptSegment
-from app.services.auth_service import get_optional_current_user
+from app.services.auth_service import get_current_user
 from app.services.note_service import NoteService
 
 logger = logging.getLogger(__name__)
@@ -312,7 +312,7 @@ def _build_note_request_fields(
 def generate_note_async(
     req: NoteRequest,
     background_tasks: BackgroundTasks,
-    user: AuthenticatedUser | None = Depends(get_optional_current_user),
+    user: AuthenticatedUser = Depends(get_current_user),
 ):
     del background_tasks
     try:
@@ -333,7 +333,7 @@ def generate_note_async(
 @router.post("/generate_sync", response_model=NoteResponse)
 def generate_note_sync(
     req: NoteRequest,
-    user: AuthenticatedUser | None = Depends(get_optional_current_user),
+    user: AuthenticatedUser = Depends(get_current_user),
 ):
     del req, user
     raise HTTPException(
@@ -343,7 +343,7 @@ def generate_note_sync(
 
 
 @router.get("/task/{task_id}", response_model=TaskStatusResponse)
-def get_task_status(task_id: str, user: AuthenticatedUser | None = Depends(get_optional_current_user)):
+def get_task_status(task_id: str, user: AuthenticatedUser = Depends(get_current_user)):
     user_id = user.user_id if user else None
     status_data = _note_service.get_status(task_id, user_id=user_id)
     status = status_data.get("status", "not_found")
@@ -365,7 +365,7 @@ def get_task_status(task_id: str, user: AuthenticatedUser | None = Depends(get_o
 
 
 @router.get("/task/{task_id}/artifacts/{asset_path:path}", include_in_schema=False)
-def get_task_artifact(task_id: str, asset_path: str, user: AuthenticatedUser | None = Depends(get_optional_current_user)):
+def get_task_artifact(task_id: str, asset_path: str, user: AuthenticatedUser = Depends(get_current_user)):
     try:
         body, content_type = _note_service.get_artifact(task_id, asset_path, user_id=user.user_id if user else None)
     except Exception as exc:
@@ -375,7 +375,7 @@ def get_task_artifact(task_id: str, asset_path: str, user: AuthenticatedUser | N
 
 
 @router.get("/styles")
-def get_styles(user: AuthenticatedUser | None = Depends(get_optional_current_user)):
+def get_styles(user: AuthenticatedUser = Depends(get_current_user)):
     try:
         styles = _note_service.list_styles(user_id=user.user_id if user else None)
     except Exception as exc:
@@ -388,7 +388,7 @@ def get_styles(user: AuthenticatedUser | None = Depends(get_optional_current_use
 def generate_from_file_async(
     req: LocalFileRequest,
     background_tasks: BackgroundTasks,
-    user: AuthenticatedUser | None = Depends(get_optional_current_user),
+    user: AuthenticatedUser = Depends(get_current_user),
 ):
     del background_tasks
     try:
@@ -411,7 +411,7 @@ def generate_from_file_async(
 @router.post("/generate_from_file_sync", response_model=NoteResponse)
 def generate_from_file_sync(
     req: LocalFileRequest,
-    user: AuthenticatedUser | None = Depends(get_optional_current_user),
+    user: AuthenticatedUser = Depends(get_current_user),
 ):
     del req, user
     raise HTTPException(status_code=410, detail="Synchronous local file generation is deprecated; use async server-backed generation.")
@@ -432,7 +432,7 @@ async def generate_from_upload(
     model_name: str | None = Form(None),
     api_key: str | None = Form(None),
     base_url: str | None = Form(None),
-    user: AuthenticatedUser | None = Depends(get_optional_current_user),
+    user: AuthenticatedUser = Depends(get_current_user),
 ):
     try:
         normalized_source_type = _normalize_source_type(source_type)
@@ -483,7 +483,7 @@ async def generate_from_upload_sync(
     model_name: str | None = Form(None),
     api_key: str | None = Form(None),
     base_url: str | None = Form(None),
-    user: AuthenticatedUser | None = Depends(get_optional_current_user),
+    user: AuthenticatedUser = Depends(get_current_user),
 ):
     del file, source_type, title, style, summary_mode, extras, output_language, model_profile_id, stt_profile_id, model_name, api_key, base_url, user
     raise HTTPException(status_code=410, detail="Synchronous upload generation is deprecated; use /api/generate_from_upload and poll /api/task/{task_id}.")

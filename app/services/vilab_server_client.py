@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import json
 import mimetypes
+import os
 import uuid
 from dataclasses import asdict, is_dataclass
 from pathlib import Path
@@ -33,7 +34,7 @@ class VILabServerClient:
         transport: httpx.BaseTransport | None = None,
     ):
         self.base_url = (base_url or settings.vilab_server_base_url).rstrip("/")
-        self.api_key = api_key if api_key is not None else settings.vilab_server_api_key
+        self.api_key = api_key if api_key is not None else self._resolve_default_api_key()
         self.client_id = client_id or settings.vilab_server_client_id or self._load_or_create_client_id()
         self.desktop_id = desktop_id or settings.vilab_server_desktop_id or self.client_id
         self.timeout_seconds = timeout_seconds or settings.vilab_server_timeout_seconds
@@ -48,11 +49,43 @@ class VILabServerClient:
             "X-VILab-Desktop-Id": self.desktop_id,
         }
 
+    @staticmethod
+    def _resolve_default_api_key() -> str:
+        if settings.vilab_server_api_key:
+            return settings.vilab_server_api_key
+        for candidate in VILabServerClient._initial_api_key_candidates():
+            try:
+                if not candidate.is_file():
+                    continue
+                payload = json.loads(candidate.read_text(encoding="utf-8"))
+                if isinstance(payload, dict):
+                    for key in ("apiKey", "api_key", "key", "secret"):
+                        value = payload.get(key)
+                        if isinstance(value, str) and value.strip():
+                            return value.strip()
+            except Exception:
+                continue
+        return ""
+
+    @staticmethod
+    def _initial_api_key_candidates() -> list[Path]:
+        configured = os.getenv("VILAB_SERVER_INITIAL_API_KEY_FILE", "").strip()
+        candidates: list[Path] = []
+        if configured:
+            candidates.append(Path(configured))
+        candidates.extend([
+            Path("D:/Project/VILab-server-note-migration/.local-data/initial-api-key.json"),
+            Path("D:/Project/VILab-server-pr38/.local-data/initial-api-key.json"),
+            Path("/Users/susanawang/Documents/GitHub/VILab-server-pr38/.local-data/initial-api-key.json"),
+        ])
+        return candidates
+
     def _client(self) -> httpx.Client:
         return httpx.Client(
             base_url=self.base_url,
             timeout=self.timeout_seconds,
             transport=self._transport,
+            trust_env=False,
         )
 
     def _request(self, method: str, path: str, **kwargs) -> httpx.Response:

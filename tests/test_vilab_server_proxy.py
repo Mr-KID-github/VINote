@@ -1,4 +1,5 @@
 import json
+import os
 from pathlib import Path
 
 import httpx
@@ -101,3 +102,23 @@ def test_vilab_server_client_serializes_transcript_text_to_server():
     assert payload["id"] == "run-2"
     assert "sourceType=transcript" in seen["body"]
     assert "transcriptText=" in seen["body"]
+
+
+def test_vilab_server_client_ignores_system_proxy_and_can_load_initial_public_api_key(tmp_path, monkeypatch):
+    initial_key = tmp_path / "initial-api-key.json"
+    initial_key.write_text(json.dumps({"apiKey": "public-key-from-file"}), encoding="utf-8")
+    monkeypatch.setenv("HTTP_PROXY", "http://127.0.0.1:7890")
+    monkeypatch.setenv("HTTPS_PROXY", "http://127.0.0.1:7890")
+    monkeypatch.setenv("VILAB_SERVER_INITIAL_API_KEY_FILE", str(initial_key))
+    monkeypatch.setattr("app.services.vilab_server_client.settings.vilab_server_api_key", "")
+
+    client = VILabServerClient(
+        base_url="http://vilab.test",
+        transport=httpx.MockTransport(lambda request: httpx.Response(200, json={"data": []})),
+    )
+    built = client._client()
+    try:
+        assert client.api_key == "public-key-from-file"
+        assert built.trust_env is False
+    finally:
+        built.close()
