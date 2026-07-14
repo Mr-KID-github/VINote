@@ -197,6 +197,22 @@ function formatMilliseconds(value: unknown) {
   return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`
 }
 
+function renderTranscriptMarkdown(
+  turns: PipelineTurn[],
+  aliases: Record<string, string>,
+): string {
+  const blocks = turns
+    .map((turn) => {
+      const speakerKey = turn.speakerId ?? turn.speakerLabel ?? 'speaker'
+      const speakerLabel = aliases[speakerKey] ?? turn.speakerLabel ?? speakerKey
+      const timestamp = formatMilliseconds(turn.startMs ?? 0)
+      const text = (turn.text ?? '').trim()
+      return `**${speakerLabel}** _${timestamp}_\n\n${text}`
+    })
+    .filter((block) => block.replace(/[*_:\s]/g, '').length > 0)
+  return blocks.join('\n\n---\n\n')
+}
+
 function findActiveTranscriptTurnIndex(turns: PipelineTurn[], currentSeconds: number) {
   const playbackMs = currentSeconds * 1000
   let previous = -1
@@ -500,11 +516,21 @@ export function NoteEditor() {
   }
 
   const handleExport = () => {
-    const blob = new Blob([content], { type: 'text/markdown' })
+    const baseTitle = localTitle.trim() || 'note'
+    let payload: string
+    let filename: string
+    if (noteView === 'transcript' && transcriptTurns.length > 0) {
+      payload = renderTranscriptMarkdown(transcriptTurns, speakerAliases)
+      filename = `${baseTitle}.transcript.md`
+    } else {
+      payload = content
+      filename = `${baseTitle}.md`
+    }
+    const blob = new Blob([payload], { type: 'text/markdown;charset=utf-8' })
     const url = URL.createObjectURL(blob)
     const anchor = document.createElement('a')
     anchor.href = url
-    anchor.download = `${localTitle || 'note'}.md`
+    anchor.download = filename
     anchor.click()
     URL.revokeObjectURL(url)
   }

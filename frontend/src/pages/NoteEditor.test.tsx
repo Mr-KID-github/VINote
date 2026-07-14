@@ -203,4 +203,60 @@ describe('NoteEditor Summary and Transcript views', () => {
       }),
     )
   })
+
+  it('exports the summary markdown from the Summary view', async () => {
+    const originalCreate = URL.createObjectURL
+    const originalRevoke = URL.revokeObjectURL
+    URL.createObjectURL = vi.fn(() => 'blob:summary') as typeof URL.createObjectURL
+    URL.revokeObjectURL = vi.fn() as typeof URL.revokeObjectURL
+    const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined)
+
+    try {
+      renderEditor('/note/note-1?view=minutes')
+      await screen.findByDisplayValue('Meeting note')
+
+      fireEvent.click(screen.getByTitle('Export'))
+
+      expect(clickSpy).toHaveBeenCalled()
+      expect(clickSpy.mock.instances[0]?.download).toBe('Meeting note.md')
+    } finally {
+      URL.createObjectURL = originalCreate
+      URL.revokeObjectURL = originalRevoke
+      clickSpy.mockRestore()
+    }
+  })
+
+  it('exports the transcript (with speaker labels and timestamp) from the Transcript view', async () => {
+    let capturedPayload = ''
+    const originalCreate = URL.createObjectURL
+    const originalRevoke = URL.revokeObjectURL
+    URL.createObjectURL = vi.fn((blob: Blob) => {
+      const reader = new FileReader()
+      reader.onload = () => {
+        capturedPayload = typeof reader.result === 'string' ? reader.result : ''
+      }
+      reader.readAsText(blob)
+      return 'blob:transcript'
+    }) as typeof URL.createObjectURL
+    URL.revokeObjectURL = vi.fn() as typeof URL.revokeObjectURL
+    const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined)
+
+    try {
+      renderEditor('/note/note-1?view=transcript')
+      await screen.findByText('We agreed to activate Sortformer.')
+
+      fireEvent.click(screen.getByTitle('Export'))
+
+      expect(clickSpy).toHaveBeenCalled()
+      expect(clickSpy.mock.instances[0]?.download).toBe('Meeting note.transcript.md')
+
+      await waitFor(() => expect(capturedPayload).toContain('We agreed to activate Sortformer.'))
+      expect(capturedPayload).toContain('01:02')
+      expect(capturedPayload).toContain('**speaker_01**')
+    } finally {
+      URL.createObjectURL = originalCreate
+      URL.revokeObjectURL = originalRevoke
+      clickSpy.mockRestore()
+    }
+  })
 })
