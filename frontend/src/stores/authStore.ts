@@ -1,6 +1,5 @@
 import { create } from 'zustand'
 import { apiFetch, apiJson } from '../lib/api'
-import { useModelProfileStore } from './modelProfileStore'
 import { useNoteLibraryStore } from './noteLibraryStore'
 import { useTeamStore } from './teamStore'
 
@@ -25,7 +24,6 @@ interface AuthState {
 }
 
 const clearUserState = () => {
-  useModelProfileStore.getState().reset()
   useNoteLibraryStore.getState().reset()
   useTeamStore.getState().reset()
 }

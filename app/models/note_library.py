@@ -43,6 +43,14 @@ class NoteUpdateRequest(BaseModel):
     content: str = ""
 
 
+class SpeakerAliasesUpdateRequest(BaseModel):
+    aliases: dict[str, str] = Field(default_factory=dict)
+
+
+class SpeakerAliasesResponse(BaseModel):
+    aliases: dict[str, str]
+
+
 class NoteShareRecord(BaseModel):
     note_id: str
     title: str

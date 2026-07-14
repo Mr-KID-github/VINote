@@ -1,5 +1,0 @@
--r requirements.txt
-
-# Optional local-transcription dependency set.
-# Install this only when you need TRANSCRIBER_TYPE=faster-whisper.
-faster-whisper==1.1.0

@@ -16,14 +16,14 @@ VINote 是一个将视频或音频内容转换为结构化 Markdown 笔记的全
 
 ## 核心能力
 
-- 从视频 URL、本地音频/视频文件或本地文字稿生成结构化 Markdown 笔记
-- 支持应用内简约会议录音悬浮窗，录音结束后自动转写并生成会议纪要
-- 已有文字稿时可直接跳过 STT，缩短生成链路并减少额外转写成本
+- 从视频 URL、本地音频/视频文件或本地文字稿生成结构化 Markdown 笔记，并由 VILab Server 执行下载、转写和总结
+- 支持应用内简约会议录音悬浮窗，录音结束后委托 VILab Server 生成会议纪要
+- 已有文字稿时直接交给 VILab Server 的文字稿流程
 - 支持多种总结模式：`default`、`accurate`、`oneshot`
-- 自动补充关键时刻、时间戳跳转和截图
+- 展示 VILab Server 返回的关键时刻、时间戳、截图和产物
 - 保存笔记并在内置编辑器中继续修改
 - 支持公开只读分享链接
-- 支持 LLM / STT 配置管理
+- 支持配置本地或远程 VILab Server 连接
 - 同时提供独立文档站与 FastAPI Swagger / ReDoc
 - 文档支持中英文双语，默认中文，英文入口为 `/en/`
 
@@ -72,16 +72,17 @@ cp .env.example .env
 python main.py
 ```
 
-如果需要本地 `faster-whisper`：
-
-```bash
-pip install -r requirements.local-transcribers.txt
-```
-
 热重载模式：
 
 ```bash
 uvicorn main:app --host 0.0.0.0 --port 8900 --reload
+```
+
+后端测试使用独立的开发依赖清单：
+
+```bash
+python -m pip install -r requirements-dev.txt
+python -m pytest -q
 ```
 
 前端：
@@ -96,15 +97,15 @@ npm run web:dev
 也可以在仓库根目录直接启动开发环境：
 
 ```bash
-yarn dev         # 后端 + Tauri 桌面客户端
-yarn api:dev     # 仅后端
-yarn client:dev  # 仅 Tauri 桌面客户端
-yarn web:dev     # 仅浏览器 Web 客户端
+npm run dev         # 后端 + Tauri 桌面客户端
+npm run api:dev     # 仅后端
+npm run client:dev  # 仅 Tauri 桌面客户端
+npm run web:dev     # 仅浏览器 Web 客户端
 ```
 
 如果 `3100` 端口上已经有 VINote 的 Vite 开发服务器，桌面开发模式会直接复用它。
-`yarn dev` 会自动选择已安装后端依赖的 Python；如需手动指定，可设置 `VINOTE_PYTHON=/path/to/python`。
-如果 `.env` 中的本地 Postgres 暂时不可达，`yarn dev` 会仅在当前开发会话中临时改用 `data/vinote.dev.db` SQLite 数据库，不会修改 `.env`。
+`npm run dev` 会自动选择已安装后端依赖的 Python；如需手动指定，可设置 `VINOTE_PYTHON=/path/to/python`。
+如果 `.env` 中的本地 Postgres 暂时不可达，`npm run dev` 会仅在当前开发会话中临时改用 `data/vinote.dev.db` SQLite 数据库，不会修改 `.env`。
 
 文档站：
 
@@ -141,7 +142,7 @@ corepack enable
 
 ```bash
 cd frontend
-yarn dev
+npm run dev
 ```
 
 等价 npm 命令：

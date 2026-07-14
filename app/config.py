@@ -34,32 +34,6 @@ class Settings:
         ),
     )
 
-    llm_api_key: str = os.getenv("LLM_API_KEY", "")
-    llm_base_url: str = os.getenv("LLM_BASE_URL", "https://api.openai.com/v1")
-    llm_model: str = os.getenv("LLM_MODEL", "gpt-4o-mini")
-    llm_provider: str = os.getenv("LLM_PROVIDER", "openai-compatible")
-
-    transcriber_type: str = os.getenv("TRANSCRIBER_TYPE", "groq")
-    groq_api_key: str = os.getenv("GROQ_API_KEY", "")
-    whisper_model_size: str = os.getenv("WHISPER_MODEL_SIZE", "base")
-    whisper_device: str = os.getenv("WHISPER_DEVICE", "cpu")
-    faster_whisper_compute_type: str = os.getenv("FASTER_WHISPER_COMPUTE_TYPE", "int8")
-    sensevoice_base_url: str = os.getenv("SENSEVOICE_BASE_URL", "http://localhost:50000")
-    sensevoice_language: str = os.getenv("SENSEVOICE_LANGUAGE", "auto")
-    sensevoice_model_size: str = os.getenv("SENSEVOICE_MODEL_SIZE", "small")
-    sensevoice_use_gpu: bool = os.getenv("SENSEVOICE_USE_GPU", "false").lower() == "true"
-    transcription_chunking_enabled: bool = os.getenv("TRANSCRIPTION_CHUNKING_ENABLED", "true").lower() == "true"
-    transcription_chunk_max_duration_seconds: int = int(os.getenv("TRANSCRIPTION_CHUNK_MAX_DURATION_SECONDS", "1200"))
-    transcription_chunk_overlap_seconds: int = int(os.getenv("TRANSCRIPTION_CHUNK_OVERLAP_SECONDS", "120"))
-    transcription_chunk_target_file_size_mb: int = int(os.getenv("TRANSCRIPTION_CHUNK_TARGET_FILE_SIZE_MB", "20"))
-    transcription_chunk_min_core_seconds: int = int(os.getenv("TRANSCRIPTION_CHUNK_MIN_CORE_SECONDS", "300"))
-    transcription_chunk_bitrate_kbps: int = int(os.getenv("TRANSCRIPTION_CHUNK_BITRATE_KBPS", "64"))
-    summary_default_max_chars: int = int(os.getenv("SUMMARY_DEFAULT_MAX_CHARS", "18000"))
-    summary_default_max_segments: int = int(os.getenv("SUMMARY_DEFAULT_MAX_SEGMENTS", "180"))
-    summary_chunk_max_chars: int = int(os.getenv("SUMMARY_CHUNK_MAX_CHARS", "12000"))
-    summary_chunk_max_segments: int = int(os.getenv("SUMMARY_CHUNK_MAX_SEGMENTS", "120"))
-    summary_chunk_overlap_segments: int = int(os.getenv("SUMMARY_CHUNK_OVERLAP_SEGMENTS", "5"))
-
     data_dir: Path = BASE_DIR / os.getenv("DATA_DIR", "data")
     output_dir: Path = BASE_DIR / os.getenv("OUTPUT_DIR", "output")
 
@@ -72,8 +46,14 @@ class Settings:
     auth_cookie_domain: str = os.getenv("AUTH_COOKIE_DOMAIN", "")
     share_base_url: str = os.getenv("SHARE_BASE_URL", "").strip()
 
-    model_profile_encryption_key: str = os.getenv("MODEL_PROFILE_ENCRYPTION_KEY", "")
-    azure_openai_api_version: str = os.getenv("AZURE_OPENAI_API_VERSION", "2024-10-21")
+    vilab_server_base_url: str = os.getenv("VILAB_SERVER_BASE_URL", "http://127.0.0.1:9876").strip()
+    vilab_server_api_key: str = os.getenv("VILAB_SERVER_API_KEY", "").strip()
+    vilab_server_client_id: str = os.getenv("VILAB_SERVER_CLIENT_ID", "").strip()
+    vilab_server_desktop_id: str = os.getenv("VILAB_SERVER_DESKTOP_ID", "").strip()
+    vilab_server_timeout_seconds: int = int(os.getenv("VILAB_SERVER_TIMEOUT_SECONDS", "300"))
+    upload_max_bytes: int = int(os.getenv("UPLOAD_MAX_BYTES", str(4 * 1024 * 1024 * 1024)))
+
+    secret_encryption_key: str = os.getenv("SECRET_ENCRYPTION_KEY", "")
 
     def __post_init__(self):
         self.data_dir.mkdir(parents=True, exist_ok=True)

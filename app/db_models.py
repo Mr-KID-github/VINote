@@ -58,6 +58,7 @@ class NoteDB(Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     title: Mapped[str] = mapped_column(String(255))
     content: Mapped[str] = mapped_column(Text, default="")
+    structured_json: Mapped[str | None] = mapped_column(Text, nullable=True)
     video_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     source_type: Mapped[str | None] = mapped_column(String(32), nullable=True)
     task_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
@@ -72,43 +73,53 @@ class NoteDB(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, onupdate=utc_now)
 
 
-class ModelProfileDB(Base):
-    __tablename__ = "model_profiles"
+class VILabServerConnectionDB(Base):
+    __tablename__ = "vilab_server_connections"
     __table_args__ = (
-        UniqueConstraint("user_id", "name", name="uq_model_profiles_user_name"),
+        UniqueConstraint("user_id", name="uq_vilab_server_connections_user"),
     )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     user_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id", ondelete="CASCADE"), index=True)
-    name: Mapped[str] = mapped_column(String(100))
-    provider: Mapped[str] = mapped_column(String(64))
+    mode: Mapped[str] = mapped_column(String(16), default="local")
     base_url: Mapped[str] = mapped_column(String(500))
-    model_name: Mapped[str] = mapped_column(String(200))
-    api_key_encrypted: Mapped[str] = mapped_column(Text)
-    is_default: Mapped[bool] = mapped_column(Boolean, default=False)
-    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    api_key_encrypted: Mapped[str] = mapped_column(Text, default="")
+    status: Mapped[str] = mapped_column(String(32), default="untested")
+    version: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    latency_ms: Mapped[int | None] = mapped_column(nullable=True)
+    checked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, onupdate=utc_now)
 
 
-class STTProfileDB(Base):
-    __tablename__ = "stt_profiles"
-    __table_args__ = (
-        UniqueConstraint("user_id", "name", name="uq_stt_profiles_user_name"),
-    )
+class GenerationJobDB(Base):
+    __tablename__ = "generation_jobs"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     user_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id", ondelete="CASCADE"), index=True)
-    name: Mapped[str] = mapped_column(String(100))
-    provider: Mapped[str] = mapped_column(String(64))
-    model_name: Mapped[str | None] = mapped_column(String(200), nullable=True)
-    base_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
-    api_key_encrypted: Mapped[str | None] = mapped_column(Text, nullable=True)
-    language: Mapped[str | None] = mapped_column(String(50), nullable=True)
-    device: Mapped[str | None] = mapped_column(String(32), nullable=True)
-    compute_type: Mapped[str | None] = mapped_column(String(32), nullable=True)
-    use_gpu: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
-    is_default: Mapped[bool] = mapped_column(Boolean, default=False)
-    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    upstream_run_id: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    status: Mapped[str] = mapped_column(String(32), default="pending")
+    source_type: Mapped[str] = mapped_column(String(32), default="audio")
+    title: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    scope: Mapped[str] = mapped_column(String(16), default="personal")
+    team_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
+    metadata_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    error_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    result_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    note_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
+    finalized_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, onupdate=utc_now)
+
+
+class MeetingSessionDB(Base):
+    __tablename__ = "meeting_sessions"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    user_id: Mapped[str] = mapped_column(String(36), index=True)
+    status: Mapped[str] = mapped_column(String(32), default="created")
+    connection_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    upstream_session_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    generation_job_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, onupdate=utc_now)

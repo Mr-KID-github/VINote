@@ -13,11 +13,47 @@ export interface TaskStatusResponse {
   task_id?: string
   status: string
   message: string
+  note_id?: string
   result?: {
     task_id: string
     title: string
     markdown: string
   }
+  metadata?: {
+    progress?: { stage?: string }
+    error?: { stage?: string }
+  }
+}
+
+export type NoteGenerationStep = 'uploading' | 'transcribing' | 'summarizing'
+
+export function taskGenerationStep(status: TaskStatusResponse): NoteGenerationStep | undefined {
+  const stage = String(status.metadata?.error?.stage || status.metadata?.progress?.stage || '')
+    .trim()
+    .toLowerCase()
+
+  if (stage.includes('summary') || stage.includes('note') || stage.includes('format')) {
+    return 'summarizing'
+  }
+  if (stage.includes('speaker') || stage.includes('transcript') || stage.includes('diar') || stage.includes('asr')) {
+    return 'transcribing'
+  }
+  if (stage.includes('source') || stage.includes('upload')) {
+    return 'uploading'
+  }
+  if (status.status === 'summarizing' || status.status === 'screenshots') {
+    return 'summarizing'
+  }
+  if (status.status === 'transcribing') {
+    return 'transcribing'
+  }
+  return undefined
+}
+
+export function progressForGenerationStep(step: NoteGenerationStep): number {
+  if (step === 'summarizing') return 80
+  if (step === 'transcribing') return 50
+  return 20
 }
 
 export interface UploadGenerationInput {
@@ -27,11 +63,18 @@ export interface UploadGenerationInput {
   style?: string
   summaryMode: SummaryMode
   outputLanguage?: string
-  modelProfileId?: string
-  sttProfileId?: string
+  workspace?: { scope: 'personal' | 'team'; teamId?: string }
 }
 
 export async function submitUploadedSource(input: UploadGenerationInput) {
+  return submitUpload('/api/generate_from_upload', input)
+}
+
+export async function submitMeetingSessionRecording(sessionId: string, input: UploadGenerationInput) {
+  return submitUpload(`/api/meeting/sessions/${encodeURIComponent(sessionId)}/complete`, input)
+}
+
+async function submitUpload(endpoint: string, input: UploadGenerationInput) {
   const formData = new FormData()
   formData.append('file', input.file)
   formData.append('source_type', input.sourceType)
@@ -42,14 +85,12 @@ export async function submitUploadedSource(input: UploadGenerationInput) {
   if (input.outputLanguage) {
     formData.append('output_language', input.outputLanguage)
   }
-  if (input.modelProfileId) {
-    formData.append('model_profile_id', input.modelProfileId)
-  }
-  if (input.sttProfileId) {
-    formData.append('stt_profile_id', input.sttProfileId)
+  formData.append('scope', input.workspace?.scope || 'personal')
+  if (input.workspace?.scope === 'team' && input.workspace.teamId) {
+    formData.append('team_id', input.workspace.teamId)
   }
 
-  return apiJson<TaskResponse>('/api/generate_from_upload', {
+  return apiJson<TaskResponse>(endpoint, {
     method: 'POST',
     body: formData,
   })

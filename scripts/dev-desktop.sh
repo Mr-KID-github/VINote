@@ -62,7 +62,7 @@ function resolve_python {
 
   echo "[ERROR] Could not find a Python environment with VINote backend dependencies."
   echo "[ERROR] Install them with: python3 -m pip install -r requirements.txt"
-  echo "[ERROR] Or set VINOTE_PYTHON=/path/to/python before running yarn dev."
+  echo "[ERROR] Or set VINOTE_PYTHON=/path/to/python before running npm run dev."
   exit 1
 }
 
@@ -140,7 +140,7 @@ function stop_port_listener {
 }
 
 require_command curl
-require_command yarn
+require_command npm
 require_command cargo
 
 cd "$ROOT_DIR"
@@ -153,7 +153,7 @@ if [[ ! -f ".env" && -f ".env.example" ]]; then
 fi
 
 if [[ ! -d "frontend/node_modules" ]]; then
-  echo "[ERROR] Frontend dependencies are missing. Run: cd frontend && yarn install"
+  echo "[ERROR] Frontend dependencies are missing. Run: npm --prefix frontend install"
   exit 1
 fi
 
@@ -186,4 +186,4 @@ fi
 
 echo "[INFO] Starting Tauri desktop client..."
 cd "$ROOT_DIR/frontend"
-yarn dev
+npm run dev

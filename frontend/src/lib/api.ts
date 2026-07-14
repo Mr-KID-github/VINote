@@ -2,10 +2,14 @@ import { readRuntimeConfig } from './runtimeConfig'
 
 const API_BASE = readRuntimeConfig('VITE_API_BASE_URL')
 
+export function apiUrl(path: string) {
+  return `${API_BASE}${path}`
+}
+
 export async function apiFetch(path: string, init: RequestInit = {}) {
   const headers = new Headers(init.headers ?? {})
 
-  return fetch(`${API_BASE}${path}`, {
+  return fetch(apiUrl(path), {
     ...init,
     credentials: 'include',
     headers,

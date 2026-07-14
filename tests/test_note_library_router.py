@@ -3,6 +3,7 @@ import unittest
 from contextlib import contextmanager
 from pathlib import Path
 from unittest.mock import patch
+from types import SimpleNamespace
 
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
@@ -103,6 +104,39 @@ class NoteLibraryRouterTest(unittest.TestCase):
         self.assertEqual(response.content, b"fake-audio")
         self.assertEqual(response.headers["content-type"], "audio/mpeg")
 
+    def test_get_note_media_serves_declared_original_instead_of_derived_audio(self):
+        source_file = self.media_dir / "recording.m4a"
+        source_file.write_bytes(b"exact-original")
+        task_dir = self.artifact_service.create_task_dir("task-original")
+        original = self.artifact_service.stage_source_media(task_dir, str(source_file), media_kind="audio")
+        (task_dir / "media" / "recording.vilab.wav").write_bytes(b"derived-normalized")
+        self.artifact_service.update_status(task_dir, "success", "ready")
+
+        with patch("app.services.note_repository.session_scope", self._session_scope), patch.object(
+            note_library, "_artifact_service", self.artifact_service
+        ):
+            note = self.repository.create_note(
+                "user-1",
+                NoteCreateRequest(
+                    title="Original audio note",
+                    content="body",
+                    source_type="audio",
+                    task_id="task-original",
+                ),
+            )
+            response = self.client.get(f"/api/notes/{note.id}/media")
+            range_response = self.client.get(
+                f"/api/notes/{note.id}/media", headers={"Range": "bytes=0-4"}
+            )
+
+        self.assertEqual(original.read_bytes(), b"exact-original")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.content, b"exact-original")
+        self.assertTrue(response.headers["content-type"].startswith("audio/"))
+        self.assertEqual(range_response.status_code, 206)
+        self.assertEqual(range_response.content, b"exact")
+        self.assertEqual(range_response.headers["content-range"], "bytes 0-4/14")
+
     def test_get_note_media_prefers_staged_video_artifact(self):
         media_file = self.media_dir / "episode.mp3"
         media_file.write_bytes(b"fake-audio")
@@ -155,6 +189,104 @@ class NoteLibraryRouterTest(unittest.TestCase):
             )
 
             response = self.client.get(f"/api/notes/{note.id}/media")
+
+        self.assertEqual(response.status_code, 404)
+
+    def test_get_note_pipeline_resolves_private_upstream_run_after_note_access(self):
+        trace = {
+            "stageRunIds": {"speakerTranscript": "speaker-run", "summary": "summary-run", "note": "note-run"},
+            "transcript": {"turns": []},
+            "summary": {"fallbackUsed": False},
+            "note": {"status": "success"},
+        }
+        jobs = SimpleNamespace(get_accessible=lambda task_id, user_id: SimpleNamespace(upstream_run_id="note-run"))
+        service = SimpleNamespace(get_pipeline_trace=lambda run_id, user_id=None: trace)
+
+        with patch("app.services.note_repository.session_scope", self._session_scope), patch.object(
+            note_library, "_jobs", jobs
+        ), patch.object(note_library, "_note_service", service):
+            note = self.repository.create_note(
+                "user-1",
+                NoteCreateRequest(title="Pipeline note", content="body", task_id="local-job"),
+            )
+            response = self.client.get(f"/api/notes/{note.id}/pipeline")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), {**trace, "speakerAliases": {}})
+
+    def test_speaker_aliases_persist_and_overlay_pipeline_turns(self):
+        jobs = SimpleNamespace(get_accessible=lambda *_args: SimpleNamespace(upstream_run_id="note-run"))
+        service = SimpleNamespace(
+            get_pipeline_trace=lambda *_args, **_kwargs: {
+                "stageRunIds": {"note": "note-run"},
+                "transcript": {"turns": [{"speakerId": "speaker_01", "text": "Hello"}]},
+                "summary": None,
+                "note": {"status": "success"},
+            }
+        )
+
+        with patch("app.services.note_repository.session_scope", self._session_scope), patch.object(
+            note_library, "_jobs", jobs
+        ), patch.object(note_library, "_note_service", service):
+            note = self.repository.create_note(
+                "user-1", NoteCreateRequest(title="Named speakers", content="body", task_id="local-job")
+            )
+            saved = self.client.patch(
+                f"/api/notes/{note.id}/speakers", json={"aliases": {"speaker_01": "Susan Wang"}}
+            )
+            merged = self.client.patch(
+                f"/api/notes/{note.id}/speakers", json={"aliases": {"speaker_02": "Daniel"}}
+            )
+            removed = self.client.patch(
+                f"/api/notes/{note.id}/speakers", json={"aliases": {"speaker_02": ""}}
+            )
+            pipeline = self.client.get(f"/api/notes/{note.id}/pipeline")
+
+        self.assertEqual(saved.status_code, 200)
+        self.assertEqual(saved.json(), {"aliases": {"speaker_01": "Susan Wang"}})
+        self.assertEqual(merged.json(), {"aliases": {"speaker_01": "Susan Wang", "speaker_02": "Daniel"}})
+        self.assertEqual(removed.json(), {"aliases": {"speaker_01": "Susan Wang"}})
+        self.assertEqual(pipeline.json()["speakerAliases"], {"speaker_01": "Susan Wang"})
+        self.assertEqual(pipeline.json()["transcript"]["turns"][0]["speakerLabel"], "Susan Wang")
+
+    def test_speaker_aliases_validate_input_and_enforce_note_access(self):
+        with patch("app.services.note_repository.session_scope", self._session_scope):
+            note = self.repository.create_note("user-1", NoteCreateRequest(title="Private", content="body"))
+            invalid = self.client.patch(
+                f"/api/notes/{note.id}/speakers", json={"aliases": {"../speaker": "Invalid"}}
+            )
+            self.app.dependency_overrides[get_current_user] = lambda: AuthenticatedUser(user_id="user-2")
+            forbidden = self.client.patch(
+                f"/api/notes/{note.id}/speakers", json={"aliases": {"speaker_01": "Hidden"}}
+            )
+
+        self.assertEqual(invalid.status_code, 400)
+        self.assertEqual(forbidden.status_code, 404)
+
+    def test_get_note_pipeline_returns_empty_shape_without_generation_job(self):
+        with patch("app.services.note_repository.session_scope", self._session_scope), patch.object(
+            note_library, "_jobs", SimpleNamespace(get_accessible=lambda *_args: None)
+        ):
+            note = self.repository.create_note(
+                "user-1",
+                NoteCreateRequest(title="Old note", content="body", task_id="missing-job"),
+            )
+            response = self.client.get(f"/api/notes/{note.id}/pipeline")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.json(),
+            {"stageRunIds": {}, "transcript": None, "summary": None, "note": None},
+        )
+
+    def test_get_note_pipeline_does_not_reveal_inaccessible_note(self):
+        self.app.dependency_overrides[get_current_user] = lambda: AuthenticatedUser(user_id="user-2")
+        with patch("app.services.note_repository.session_scope", self._session_scope):
+            note = self.repository.create_note(
+                "user-1",
+                NoteCreateRequest(title="Private pipeline", content="body", task_id="private-job"),
+            )
+            response = self.client.get(f"/api/notes/{note.id}/pipeline")
 
         self.assertEqual(response.status_code, 404)
 

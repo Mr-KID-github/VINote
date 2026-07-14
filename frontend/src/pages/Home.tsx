@@ -75,6 +75,7 @@ export function Home() {
           emptyTitle={copy.home.emptyTitle}
           emptyBody={copy.home.emptyBody}
           onOpen={(note) => navigate(`/note/${note.id}`)}
+          onOpenLiveRecording={() => navigate('/recording/live?view=transcript')}
         />
       </section>
     </div>

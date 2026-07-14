@@ -3,16 +3,16 @@
   "private": true,
   "version": "0.2.0",
   "description": "VINote workspace command shortcuts",
-  "packageManager": "yarn@1.22.22",
+  "packageManager": "npm@11.6.2",
   "scripts": {
     "dev": "bash scripts/dev-desktop.sh",
     "api:dev": "python3 -m uvicorn main:app --host 0.0.0.0 --port 8900 --reload",
-    "client:dev": "yarn --cwd frontend dev",
-    "web:dev": "yarn --cwd frontend web:dev",
-    "build": "yarn --cwd frontend build",
-    "preview": "yarn --cwd frontend preview",
-    "desktop:build": "yarn --cwd frontend desktop:build",
-    "docs:dev": "yarn --cwd docs docs:dev",
-    "docs:build": "yarn --cwd docs docs:build"
+    "client:dev": "npm --prefix frontend run dev",
+    "web:dev": "npm --prefix frontend run web:dev",
+    "build": "npm --prefix frontend run build",
+    "preview": "npm --prefix frontend run preview",
+    "desktop:build": "npm --prefix frontend run desktop:build",
+    "docs:dev": "npm --prefix docs run docs:dev",
+    "docs:build": "npm --prefix docs run docs:build"
   }
 }

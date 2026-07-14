@@ -7,6 +7,8 @@ type RecorderBehavior = 'normal' | 'missing-stop-event'
 let recorderBehavior: RecorderBehavior = 'normal'
 let lastRecorder: FakeMediaRecorder | null = null
 let stopTrack: ReturnType<typeof vi.fn>
+let fakeProcessor: { onaudioprocess: ((event: any) => void) | null; connect: ReturnType<typeof vi.fn>; disconnect: ReturnType<typeof vi.fn> }
+let closeAudioContext: ReturnType<typeof vi.fn>
 
 class FakeMediaRecorder {
   static isTypeSupported = vi.fn(() => true)
@@ -53,6 +55,8 @@ describe('useAudioRecorder', () => {
     recorderBehavior = 'normal'
     lastRecorder = null
     stopTrack = vi.fn()
+    closeAudioContext = vi.fn().mockResolvedValue(undefined)
+    fakeProcessor = { onaudioprocess: null, connect: vi.fn(), disconnect: vi.fn() }
     vi.stubGlobal('MediaRecorder', FakeMediaRecorder)
     Object.defineProperty(navigator, 'mediaDevices', {
       configurable: true,
@@ -106,5 +110,55 @@ describe('useAudioRecorder', () => {
     expect(blob.size).toBeGreaterThan(0)
     expect(stopTrack).toHaveBeenCalledTimes(1)
     expect(result.current.status).toBe('stopped')
+  })
+
+  it('excludes paused wall time from elapsed recording time', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-07-12T00:00:00Z'))
+    const { result } = renderHook(() => useAudioRecorder())
+
+    await act(async () => result.current.start())
+    await act(async () => {
+      vi.advanceTimersByTime(2200)
+    })
+    act(() => result.current.pause())
+    await act(async () => {
+      vi.advanceTimersByTime(10000)
+    })
+    act(() => result.current.resume())
+    await act(async () => {
+      vi.advanceTimersByTime(1300)
+    })
+
+    expect(result.current.elapsedSeconds).toBe(3)
+  })
+
+  it('derives silent-monitor PCM from the same stream without changing the recorded blob', async () => {
+    const pcm = vi.fn()
+    const source = { connect: vi.fn(), disconnect: vi.fn() }
+    vi.stubGlobal('AudioContext', class {
+      sampleRate = 48_000
+      state = 'running'
+      destination = {}
+      audioWorklet = undefined
+      createMediaStreamSource = vi.fn(() => source)
+      createScriptProcessor = vi.fn(() => fakeProcessor)
+      resume = vi.fn()
+      close = closeAudioContext
+    })
+    const { result } = renderHook(() => useAudioRecorder(pcm))
+
+    await act(async () => result.current.start())
+    const output = new Float32Array(2).fill(1)
+    act(() => fakeProcessor.onaudioprocess?.({
+      inputBuffer: { getChannelData: () => new Float32Array([0.25, -0.25]) },
+      outputBuffer: { getChannelData: () => output },
+    }))
+    const blob = await act(async () => result.current.stop())
+
+    expect(pcm).toHaveBeenCalledWith(expect.any(Float32Array), 48_000)
+    expect(output).toEqual(new Float32Array([0, 0]))
+    expect(blob.size).toBeGreaterThan(0)
+    expect(closeAudioContext).toHaveBeenCalledTimes(1)
   })
 })

@@ -32,6 +32,7 @@ export function Notes() {
         emptyTitle={copy.notes.emptyTitle}
         emptyBody={copy.notes.emptyBody}
         onOpen={(note) => navigate(`/note/${note.id}`)}
+        onOpenLiveRecording={() => navigate('/recording/live?view=transcript')}
       />
     </div>
   )

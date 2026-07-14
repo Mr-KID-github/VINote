@@ -1,5 +1,5 @@
 import clsx from 'clsx'
-import { CheckCircle, Download, FileAudio, FileText, Image, Loader2, Mic, XCircle } from 'lucide-react'
+import { CheckCircle, FileAudio, FileText, Loader2, Mic, XCircle } from 'lucide-react'
 import { useI18n } from '../../lib/i18n'
 
 interface GenerateProgressProps {
@@ -7,25 +7,24 @@ interface GenerateProgressProps {
   progress: number
   currentStep: string
   error?: string
+  sourceType?: 'audio' | 'transcript'
 }
 
-export function GenerateProgress({ status, progress, currentStep, error }: GenerateProgressProps) {
+export function GenerateProgress({ status, progress, currentStep, error, sourceType = 'audio' }: GenerateProgressProps) {
   const { copy } = useI18n()
   const steps = [
     { key: 'uploading', label: copy.progress.prepareRequest, icon: FileAudio },
-    { key: 'downloading', label: copy.progress.downloadAudio, icon: Download },
-    { key: 'transcribing', label: copy.progress.transcribeAudio, icon: Mic },
+    ...(sourceType === 'audio' ? [{ key: 'transcribing', label: copy.progress.transcribeAudio, icon: Mic }] : []),
     { key: 'summarizing', label: copy.progress.generateNote, icon: FileText },
-    { key: 'screenshots', label: copy.progress.processScreenshots, icon: Image },
   ]
   const stepLabels = Object.fromEntries(steps.map((step) => [step.key, step.label]))
 
   const getStepStatus = (stepKey: string) => {
     if (status === 'success') return 'completed'
-    if (status === 'failed') return 'failed'
     const currentIndex = steps.findIndex((step) => step.key === currentStep)
     const stepIndex = steps.findIndex((step) => step.key === stepKey)
     if (stepIndex < currentIndex) return 'completed'
+    if (status === 'failed' && stepIndex === currentIndex) return 'failed'
     if (stepIndex === currentIndex) return status === 'processing' ? 'processing' : 'pending'
     return 'pending'
   }

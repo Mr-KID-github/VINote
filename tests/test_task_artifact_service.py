@@ -1,5 +1,7 @@
 import tempfile
 import unittest
+import json
+import hashlib
 from pathlib import Path
 
 from app.models.audio import AudioDownloadResult
@@ -66,6 +68,27 @@ class TaskArtifactServiceTest(unittest.TestCase):
             self.assertTrue(staged.exists())
             self.assertEqual(staged.parent.name, "media")
             self.assertEqual(staged.read_bytes(), b"video")
+
+    def test_source_media_manifest_preserves_exact_bytes_and_rejects_escape(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            service = TaskArtifactService(root / "output")
+            task_dir = service.create_task_dir("task-source")
+            source = root / "recording.m4a"
+            source.write_bytes(b"exact-original-audio")
+
+            staged = service.stage_source_media(task_dir, str(source), media_kind="audio")
+            manifest = json.loads((task_dir / "source_media.json").read_text(encoding="utf-8"))
+
+            self.assertEqual(staged.read_bytes(), source.read_bytes())
+            self.assertEqual(service.resolve_source_media(task_dir), staged.resolve())
+            self.assertEqual(manifest["size_bytes"], len(b"exact-original-audio"))
+            self.assertEqual(manifest["sha256"], hashlib.sha256(b"exact-original-audio").hexdigest())
+
+            (task_dir / "source_media.json").write_text(
+                json.dumps({"relative_path": "../recording.m4a"}), encoding="utf-8"
+            )
+            self.assertIsNone(service.resolve_source_media(task_dir))
 
 
 if __name__ == "__main__":

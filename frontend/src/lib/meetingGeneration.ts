@@ -1,7 +1,7 @@
-import type { NoteRecord } from '../stores/noteLibraryStore'
 import type { WorkspaceSelection } from '../stores/teamStore'
 import {
   submitUploadedSource,
+  submitMeetingSessionRecording,
   waitForTaskCompletion,
   type SummaryMode,
   type TaskResponse,
@@ -9,28 +9,18 @@ import {
   type UploadGenerationInput,
 } from './noteGenerationClient'
 
-export const MEETING_NOTE_SOURCE_TYPE = 'meeting_recording'
-
-type SaveNote = (
-  title: string,
-  content: string,
-  videoUrl?: string,
-  taskId?: string,
-  workspace?: WorkspaceSelection,
-  sourceType?: string,
-) => Promise<NoteRecord | null>
-
 interface SubmitMeetingRecordingInput {
   audioBlob: Blob
   startedAt: Date
   outputLanguage?: string
   summaryMode: SummaryMode
-  modelProfileId?: string
-  sttProfileId?: string
+  workspace: WorkspaceSelection
+  meetingSessionId?: string
 }
 
 interface SubmitMeetingRecordingDependencies {
   submitUploadedSource?: (input: UploadGenerationInput) => Promise<TaskResponse>
+  submitMeetingSessionRecording?: (sessionId: string, input: UploadGenerationInput) => Promise<TaskResponse>
 }
 
 export function createMeetingRecordingTitle(date = new Date(), locale = 'zh-CN') {
@@ -58,31 +48,30 @@ export async function submitMeetingRecording(
   dependencies: SubmitMeetingRecordingDependencies = {},
 ) {
   const file = buildMeetingRecordingFile(input.audioBlob, input.startedAt)
-  const submit = dependencies.submitUploadedSource || submitUploadedSource
-
-  return submit({
+  const payload: UploadGenerationInput = {
     file,
     sourceType: 'audio',
     title: createMeetingRecordingTitle(input.startedAt, input.outputLanguage || 'zh-CN'),
     style: 'meeting',
     summaryMode: input.summaryMode,
     outputLanguage: input.outputLanguage,
-    modelProfileId: input.modelProfileId,
-    sttProfileId: input.sttProfileId,
-  })
+    workspace: input.workspace,
+  }
+  if (input.meetingSessionId) {
+    const submitSession = dependencies.submitMeetingSessionRecording || submitMeetingSessionRecording
+    return submitSession(input.meetingSessionId, payload)
+  }
+  const submit = dependencies.submitUploadedSource || submitUploadedSource
+  return submit(payload)
 }
 
 export async function completeMeetingRecordingGeneration({
   taskId,
-  workspace,
-  saveNote,
   fetchTaskStatus,
   onProgress,
   delay,
 }: {
   taskId: string
-  workspace: WorkspaceSelection
-  saveNote: SaveNote
   fetchTaskStatus?: (taskId: string) => Promise<TaskStatusResponse>
   onProgress?: (status: TaskStatusResponse) => void
   delay?: () => Promise<void>
@@ -93,26 +82,10 @@ export async function completeMeetingRecordingGeneration({
     onProgress,
     delay,
   })
-  const result = status.result
-
-  if (!result) {
-    throw new Error('Meeting summary completed without a result.')
+  if (!status.note_id) {
+    throw new Error('Meeting summary completed without a saved note.')
   }
-
-  const note = await saveNote(
-    result.title || createMeetingRecordingTitle(),
-    result.markdown || '',
-    undefined,
-    result.task_id || taskId,
-    workspace,
-    MEETING_NOTE_SOURCE_TYPE,
-  )
-
-  if (!note) {
-    throw new Error('Meeting summary was generated but could not be saved.')
-  }
-
-  return note
+  return { id: status.note_id }
 }
 
 function resolveAudioExtension(mimeType: string) {

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { FileAudio, FileText, Link as LinkIcon, Upload, X } from 'lucide-react'
 import clsx from 'clsx'
 import { useI18n } from '../../lib/i18n'
@@ -11,6 +11,8 @@ interface FileUploaderProps {
   onModeChange: (mode: UploadMode) => void
   videoUrl: string
   fileUploadEnabled?: boolean
+  urlEnabled?: boolean
+  initialMode?: UploadMode
 }
 
 export function FileUploader({
@@ -19,14 +21,21 @@ export function FileUploader({
   onModeChange,
   videoUrl,
   fileUploadEnabled = true,
+  urlEnabled = true,
+  initialMode = 'url',
 }: FileUploaderProps) {
   const { copy } = useI18n()
-  const [mode, setMode] = useState<UploadMode>('url')
+  const availableModes = useMemo<UploadMode[]>(() => [
+    ...(urlEnabled ? ['url' as const] : []),
+    ...(fileUploadEnabled ? ['file' as const, 'transcript' as const] : []),
+  ], [fileUploadEnabled, urlEnabled])
+  const defaultMode = availableModes.includes(initialMode) ? initialMode : availableModes[0] || 'url'
+  const [mode, setMode] = useState<UploadMode>(defaultMode)
   const [dragActive, setDragActive] = useState(false)
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
 
   const setModeSafe = (nextMode: UploadMode) => {
-    if (!fileUploadEnabled && nextMode !== 'url') {
+    if (!availableModes.includes(nextMode)) {
       return
     }
     if (selectedFile) {
@@ -38,10 +47,12 @@ export function FileUploader({
   }
 
   useEffect(() => {
-    if (!fileUploadEnabled && mode !== 'url') {
-      setModeSafe('url')
+    if (!availableModes.includes(mode)) {
+      const nextMode = availableModes[0] || 'url'
+      setMode(nextMode)
+      onModeChange(nextMode)
     }
-  }, [fileUploadEnabled, mode])
+  }, [availableModes, mode, onModeChange])
 
   const handleDrag = useCallback((event: React.DragEvent) => {
     event.preventDefault()
@@ -75,14 +86,17 @@ export function FileUploader({
 
   return (
     <div className="space-y-4">
-      <div className="flex gap-2">
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
         <button
           onClick={() => setModeSafe('url')}
+          disabled={!urlEnabled}
+          title={!urlEnabled ? 'URL and video support is not available yet' : undefined}
           className={clsx(
-            'flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors',
+            'flex w-full items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors',
+            !urlEnabled && 'cursor-not-allowed opacity-50',
             mode === 'url'
               ? 'bg-primary-light dark:bg-primary-dark text-white'
-              : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
+              : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 enabled:hover:bg-gray-200 dark:enabled:hover:bg-gray-700'
           )}
         >
           <LinkIcon className="w-4 h-4" />
@@ -93,7 +107,7 @@ export function FileUploader({
             <button
               onClick={() => setModeSafe('file')}
               className={clsx(
-                'flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors',
+                'flex w-full items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors',
                 mode === 'file'
                   ? 'bg-primary-light dark:bg-primary-dark text-white'
                   : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
@@ -105,7 +119,7 @@ export function FileUploader({
             <button
               onClick={() => setModeSafe('transcript')}
               className={clsx(
-                'flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors',
+                'flex w-full items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors',
                 mode === 'transcript'
                   ? 'bg-primary-light dark:bg-primary-dark text-white'
                   : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
@@ -172,7 +186,7 @@ export function FileUploader({
               </p>
               <input
                 type="file"
-                accept={mode === 'transcript' ? '.txt,.srt,.vtt,.json,.md' : 'audio/*,video/*'}
+                accept={mode === 'transcript' ? '.txt,.srt,.vtt,.json,.md' : 'audio/*'}
                 onChange={handleFileChange}
                 className="hidden"
                 id="file-upload"

@@ -16,14 +16,14 @@ Current stack:
 
 ## Core capabilities
 
-- Generate structured Markdown notes from video URLs, local audio/video files, or local transcript files
-- Record meetings from a minimalist in-app floating recorder, then automatically transcribe and summarize them
-- Skip the STT step when a transcript is already available
+- Generate structured Markdown notes from video URLs, local audio/video files, or local transcript files through VILab Server
+- Record meetings from a minimalist in-app floating recorder, then delegate transcription and summarization to VILab Server
+- Send transcript-first inputs directly to VILab Server
 - Support multiple summary modes: `default`, `accurate`, `oneshot`
-- Add key moments, timestamp jumps, and screenshots
+- Show key moments, timestamp jumps, screenshots, and artifacts returned by VILab Server
 - Save notes and continue editing in the built-in editor
 - Support public read-only share links
-- Support LLM and STT profile management
+- Configure a local or remote VILab Server connection
 - Expose both a standalone docs site and FastAPI Swagger / ReDoc
 - Provide bilingual docs: Simplified Chinese by default, English under `/en/`
 
@@ -72,16 +72,17 @@ cp .env.example .env
 python main.py
 ```
 
-Optional local transcriber dependencies:
-
-```bash
-pip install -r requirements.local-transcribers.txt
-```
-
 Reload mode:
 
 ```bash
 uvicorn main:app --host 0.0.0.0 --port 8900 --reload
+```
+
+Backend tests use the separate development dependency manifest:
+
+```bash
+python -m pip install -r requirements-dev.txt
+python -m pytest -q
 ```
 
 Frontend:
@@ -96,15 +97,15 @@ npm run web:dev
 You can also start the development environment directly from the repository root:
 
 ```bash
-yarn dev         # backend + Tauri desktop client
-yarn api:dev     # backend only
-yarn client:dev  # Tauri desktop client only
-yarn web:dev     # browser web client only
+npm run dev         # backend + Tauri desktop client
+npm run api:dev     # backend only
+npm run client:dev  # Tauri desktop client only
+npm run web:dev     # browser web client only
 ```
 
 When VINote's Vite dev server is already running on port `3100`, desktop development mode reuses it.
-`yarn dev` automatically selects a Python executable that has the backend dependencies installed; set `VINOTE_PYTHON=/path/to/python` to override it.
-If the local Postgres URL from `.env` is not reachable, `yarn dev` temporarily uses `data/vinote.dev.db` SQLite for that development session without modifying `.env`.
+`npm run dev` automatically selects a Python executable that has the backend dependencies installed; set `VINOTE_PYTHON=/path/to/python` to override it.
+If the local Postgres URL from `.env` is not reachable, `npm run dev` temporarily uses `data/vinote.dev.db` SQLite for that development session without modifying `.env`.
 
 Docs:
 
@@ -141,7 +142,7 @@ Desktop hot-reload development mode:
 
 ```bash
 cd frontend
-yarn dev
+npm run dev
 ```
 
 Equivalent npm command:

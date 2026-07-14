@@ -29,8 +29,8 @@ VINote 暴露了多组接口。这里解释“这些接口是干什么的”，S
   - 保存笔记 CRUD 和分享链路
 - Preferences
   - 用户级偏好配置
-- Model Profiles
-  - 模型配置与连通性测试
+- VILab Server
+  - 本地或远程 VILab Server 连接配置与连通性测试
 - Public Share
   - 公开只读分享页
 - MCP

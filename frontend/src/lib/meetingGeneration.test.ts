@@ -1,6 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
 import {
-  MEETING_NOTE_SOURCE_TYPE,
   buildMeetingRecordingFile,
   completeMeetingRecordingGeneration,
   createMeetingRecordingTitle,
@@ -32,8 +31,7 @@ describe('meetingGeneration', () => {
         startedAt: new Date('2026-06-15T10:20:30.000Z'),
         outputLanguage: 'zh-CN',
         summaryMode: 'accurate',
-        modelProfileId: 'model-1',
-        sttProfileId: 'stt-1',
+        workspace: { scope: 'personal' },
       },
       { submitUploadedSource },
     )
@@ -44,13 +42,31 @@ describe('meetingGeneration', () => {
       style: 'meeting',
       outputLanguage: 'zh-CN',
       summaryMode: 'accurate',
-      modelProfileId: 'model-1',
-      sttProfileId: 'stt-1',
+      workspace: { scope: 'personal' },
     }))
     expect(submitUploadedSource.mock.calls[0][0].file.name).toBe('meeting-recording-2026-06-15-10-20-30.webm')
   })
 
-  it('polls until success, saves the generated note as a meeting recording, and reports progress', async () => {
+  it('uses the idempotent meeting-session completion route when live setup produced a local session', async () => {
+    const submitUploadedSource = vi.fn()
+    const submitMeetingSessionRecording = vi.fn().mockResolvedValue({ task_id: 'task-1' })
+
+    await submitMeetingRecording({
+      audioBlob: new Blob(['audio'], { type: 'audio/webm' }),
+      startedAt: new Date('2026-06-15T10:20:30.000Z'),
+      summaryMode: 'default',
+      workspace: { scope: 'personal' },
+      meetingSessionId: 'meeting-session-1',
+    }, { submitUploadedSource, submitMeetingSessionRecording })
+
+    expect(submitMeetingSessionRecording).toHaveBeenCalledWith(
+      'meeting-session-1',
+      expect.objectContaining({ sourceType: 'audio' }),
+    )
+    expect(submitUploadedSource).not.toHaveBeenCalled()
+  })
+
+  it('polls until backend finalization returns one saved note and reports progress', async () => {
     const fetchTaskStatus = vi
       .fn()
       .mockResolvedValueOnce({ status: 'transcribing', message: 'Transcribing' })
@@ -58,33 +74,23 @@ describe('meetingGeneration', () => {
       .mockResolvedValueOnce({
         status: 'success',
         message: 'Done',
+        note_id: 'note-1',
         result: {
           task_id: 'task-1',
           title: 'Weekly Sync',
           markdown: '# Weekly Sync',
         },
       })
-    const saveNote = vi.fn().mockResolvedValue({ id: 'note-1' })
     const onProgress = vi.fn()
 
     const note = await completeMeetingRecordingGeneration({
       taskId: 'task-1',
-      workspace: { scope: 'personal' },
       fetchTaskStatus,
-      saveNote,
       onProgress,
       delay: () => Promise.resolve(),
     })
 
     expect(note).toEqual({ id: 'note-1' })
-    expect(saveNote).toHaveBeenCalledWith(
-      'Weekly Sync',
-      '# Weekly Sync',
-      undefined,
-      'task-1',
-      { scope: 'personal' },
-      MEETING_NOTE_SOURCE_TYPE,
-    )
     expect(onProgress).toHaveBeenCalledWith(expect.objectContaining({ status: 'transcribing' }))
     expect(onProgress).toHaveBeenCalledWith(expect.objectContaining({ status: 'summarizing' }))
   })
@@ -92,9 +98,7 @@ describe('meetingGeneration', () => {
   it('surfaces failed generation status with a useful message', async () => {
     await expect(completeMeetingRecordingGeneration({
       taskId: 'task-1',
-      workspace: { scope: 'personal' },
       fetchTaskStatus: vi.fn().mockResolvedValue({ status: 'failed', message: 'STT failed' }),
-      saveNote: vi.fn(),
       delay: () => Promise.resolve(),
     })).rejects.toThrow('STT failed')
   })

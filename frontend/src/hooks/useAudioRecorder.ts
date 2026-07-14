@@ -20,17 +20,30 @@ export function getPreferredAudioMimeType() {
   return MIME_TYPE_CANDIDATES.find((mimeType) => MediaRecorder.isTypeSupported(mimeType)) || ''
 }
 
-export function useAudioRecorder() {
+export function useAudioRecorder(
+  onPcmFrame?: (samples: Float32Array, sampleRate: number) => void,
+  onPcmError?: (message: string) => void,
+) {
   const [status, setStatus] = useState<AudioRecorderStatus>('idle')
   const [elapsedSeconds, setElapsedSeconds] = useState(0)
   const [error, setError] = useState('')
   const recorderRef = useRef<MediaRecorder | null>(null)
   const streamRef = useRef<MediaStream | null>(null)
   const chunksRef = useRef<Blob[]>([])
-  const timerRef = useRef<ReturnType<typeof window.setInterval> | null>(null)
+  const timerRef = useRef<number | null>(null)
   const timerStartedAtRef = useRef(0)
   const accumulatedMsRef = useRef(0)
   const mimeTypeRef = useRef('')
+  const pcmFrameCallbackRef = useRef(onPcmFrame)
+  const pcmErrorCallbackRef = useRef(onPcmError)
+  const audioContextRef = useRef<AudioContext | null>(null)
+  const pcmSourceRef = useRef<MediaStreamAudioSourceNode | null>(null)
+  const pcmNodeRef = useRef<AudioNode | null>(null)
+
+  useEffect(() => {
+    pcmFrameCallbackRef.current = onPcmFrame
+    pcmErrorCallbackRef.current = onPcmError
+  }, [onPcmError, onPcmFrame])
 
   const isSupported =
     typeof navigator !== 'undefined' &&
@@ -61,10 +74,85 @@ export function useAudioRecorder() {
     }, 500)
   }, [clearTimer])
 
+  const cleanupPcm = useCallback(() => {
+    if (typeof AudioWorkletNode !== 'undefined' && pcmNodeRef.current instanceof AudioWorkletNode) {
+      pcmNodeRef.current.port.onmessage = null
+    }
+    pcmNodeRef.current?.disconnect()
+    pcmSourceRef.current?.disconnect()
+    pcmNodeRef.current = null
+    pcmSourceRef.current = null
+    const context = audioContextRef.current
+    audioContextRef.current = null
+    if (context && context.state !== 'closed') void context.close()
+  }, [])
+
   const cleanupStream = useCallback(() => {
+    cleanupPcm()
     streamRef.current?.getTracks().forEach((track) => track.stop())
     streamRef.current = null
-  }, [])
+  }, [cleanupPcm])
+
+  const startPcmTap = useCallback(async (stream: MediaStream) => {
+    if (!pcmFrameCallbackRef.current) return
+    if (typeof AudioContext === 'undefined') {
+      pcmErrorCallbackRef.current?.('Realtime PCM capture is not supported in this WebView')
+      return
+    }
+    try {
+      const context = new AudioContext({ latencyHint: 'interactive' })
+      const source = context.createMediaStreamSource(stream)
+      audioContextRef.current = context
+      pcmSourceRef.current = source
+      if (context.state === 'suspended') await context.resume()
+      const emitPcm = (samples: Float32Array) => {
+        try {
+          pcmFrameCallbackRef.current?.(samples, context.sampleRate)
+        } catch (error) {
+          cleanupPcm()
+          pcmErrorCallbackRef.current?.(
+            error instanceof Error ? error.message : 'Realtime PCM processing failed',
+          )
+        }
+      }
+
+      if (context.audioWorklet && typeof AudioWorkletNode !== 'undefined') {
+        try {
+          const moduleUrl = new URL(`${import.meta.env.BASE_URL}vinote-pcm-worklet.js`, window.location.href).toString()
+          await context.audioWorklet.addModule(moduleUrl)
+          const node = new AudioWorkletNode(context, 'vinote-pcm-processor', {
+            numberOfInputs: 1,
+            numberOfOutputs: 1,
+            outputChannelCount: [1],
+          })
+          node.port.onmessage = (event) => {
+            emitPcm(new Float32Array(event.data))
+          }
+          source.connect(node)
+          node.connect(context.destination)
+          pcmNodeRef.current = node
+          return
+        } catch {
+          // Some WebViews expose AudioWorklet but reject module URLs; use the silent fallback below.
+        }
+      }
+
+      const processor = context.createScriptProcessor(2048, 1, 1)
+      processor.onaudioprocess = (event) => {
+        const samples = event.inputBuffer.getChannelData(0)
+        emitPcm(new Float32Array(samples))
+        event.outputBuffer.getChannelData(0).fill(0)
+      }
+      source.connect(processor)
+      processor.connect(context.destination)
+      pcmNodeRef.current = processor
+    } catch (pcmError) {
+      cleanupPcm()
+      pcmErrorCallbackRef.current?.(
+        pcmError instanceof Error ? pcmError.message : 'Realtime PCM capture is unavailable',
+      )
+    }
+  }, [cleanupPcm])
 
   const stopActiveRecorder = useCallback(() => {
     const recorder = recorderRef.current
@@ -115,6 +203,7 @@ export function useAudioRecorder() {
       const recorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream)
 
       streamRef.current = stream
+      await startPcmTap(stream)
       recorderRef.current = recorder
       chunksRef.current = []
       mimeTypeRef.current = mimeType || recorder.mimeType || 'audio/webm'
@@ -141,7 +230,7 @@ export function useAudioRecorder() {
       setStatus('failed')
       throw new Error(message)
     }
-  }, [cleanupStream, isSupported, reset, startTimer])
+  }, [cleanupStream, isSupported, reset, startPcmTap, startTimer])
 
   const pause = useCallback(() => {
     const recorder = recorderRef.current
@@ -177,7 +266,7 @@ export function useAudioRecorder() {
 
     return new Promise<Blob>((resolve, reject) => {
       let settled = false
-      let fallbackTimer: ReturnType<typeof window.setTimeout> | null = null
+      let fallbackTimer: number | null = null
 
       const clearFallbackTimer = () => {
         if (fallbackTimer) {

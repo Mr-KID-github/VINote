@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta, timezone
 
 import jwt
-from fastapi import Depends, HTTPException, Request, Response, status
+from fastapi import Depends, HTTPException, Request, Response, WebSocket, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from passlib.context import CryptContext
 from sqlalchemy import select
@@ -132,4 +132,11 @@ def get_optional_current_user(
     token = _extract_token(request, credentials)
     if not token:
         return None
+    return _decode_token(token)
+
+
+def authenticate_websocket(websocket: WebSocket) -> AuthenticatedUser:
+    token = websocket.cookies.get(settings.auth_cookie_name)
+    if not token:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentication required")
     return _decode_token(token)

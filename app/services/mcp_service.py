@@ -6,7 +6,6 @@ import logging
 import uuid
 from typing import Any
 
-from app.llm.prompts import STYLE_MAP, SUMMARY_MODE_MAP
 from app.services.note_service import NoteService
 
 logger = logging.getLogger(__name__)
@@ -63,12 +62,7 @@ class VINoteMCPServer:
         ]
 
     def list_styles(self) -> dict[str, Any]:
-        styles = [{"value": key, "description": value} for key, value in STYLE_MAP.items()]
-        summary_modes = [
-            {"value": key, "description": descriptions["en"]}
-            for key, descriptions in SUMMARY_MODE_MAP.items()
-        ]
-        return {"styles": styles, "summary_modes": summary_modes}
+        return self.note_service.list_styles()
 
     def generate_note(
         self,
