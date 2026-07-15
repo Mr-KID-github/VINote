@@ -35,12 +35,18 @@ interface NotePipelineTrace {
     alignment?: Record<string, unknown> | null
     resolvedModels?: Record<string, unknown>
     speakerCount?: number
+    language?: Record<string, unknown> | null
+    requestedOutputLanguage?: string | null
+    resolvedOutputLanguage?: string | null
   } | null
   summary?: {
     engine?: string
     provider?: Record<string, unknown>
     fallbackUsed?: boolean
     errorCategory?: string | null
+    language?: Record<string, unknown> | null
+    requestedOutputLanguage?: string | null
+    resolvedOutputLanguage?: string | null
   } | null
 }
 

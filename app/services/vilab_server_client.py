@@ -237,6 +237,7 @@ class VILabServerClient:
             "sourceType": source_type,
             "pipeline": pipeline,
             "summaryMode": summary_mode,
+            "outputLanguage": output_language or "auto",
             "retainArtifacts": "true",
             "desktopId": self.desktop_id,
         }
@@ -246,8 +247,6 @@ class VILabServerClient:
             data["style"] = style
         if extras:
             data["extras"] = extras
-        if output_language:
-            data["outputLanguage"] = output_language
         if user_id:
             data["userId"] = user_id
         return data

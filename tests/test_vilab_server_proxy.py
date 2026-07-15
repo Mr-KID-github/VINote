@@ -148,6 +148,8 @@ def test_vilab_server_client_requests_postprocessed_audio_transcript(tmp_path):
     assert payload["id"] == "run-audio"
     assert 'name="transcriptMode"' in seen["body"]
     assert "postprocessed" in seen["body"]
+    assert 'name="outputLanguage"' in seen["body"]
+    assert "auto" in seen["body"]
 
 
 def test_vilab_server_client_ignores_system_proxy_and_can_load_initial_public_api_key(tmp_path, monkeypatch):
@@ -229,6 +231,12 @@ def test_note_service_pipeline_trace_returns_ui_evidence_without_credentials():
                     "apiKey": "must-not-leak",
                 },
                 "postprocess": {"requestedMode": "postprocessed", "status": "completed"},
+                "language": {
+                    "requested": "auto",
+                    "resolved": "zh-CN",
+                    "source": "transcript_script",
+                    "confidence": 0.96,
+                },
             },
         },
         "/v1/summaries/runs/summary-run": {
@@ -236,6 +244,8 @@ def test_note_service_pipeline_trace_returns_ui_evidence_without_credentials():
             "result": {
                 "engine": "cloud",
                 "fallbackUsed": False,
+                "requestedOutputLanguage": "auto",
+                "resolvedOutputLanguage": "zh-CN",
                 "provider": {"id": "silicon", "authorization": "must-not-leak"},
             },
         },
@@ -261,10 +271,12 @@ def test_note_service_pipeline_trace_returns_ui_evidence_without_credentials():
     assert trace["transcript"]["finalText"] == "Hello"
     assert trace["transcript"]["cleanedTurns"][0]["text"] == "Hello"
     assert trace["transcript"]["postprocess"]["status"] == "completed"
+    assert trace["transcript"]["language"]["resolved"] == "zh-CN"
     assert trace["transcript"]["speakerSegments"][0]["speakerId"] == "speaker_01"
     assert trace["transcript"]["resolvedModels"]["asr"] == "sensevoice-small"
     assert trace["transcript"]["resolvedModels"]["diarization"] == "nvidia-sortformer-4spk-v2.1"
     assert trace["summary"]["provider"] == {"id": "silicon"}
+    assert trace["summary"]["resolvedOutputLanguage"] == "zh-CN"
     assert "must-not-leak" not in json.dumps(trace)
 
 

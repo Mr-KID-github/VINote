@@ -13,6 +13,7 @@ interface SubmitMeetingRecordingInput {
   audioBlob: Blob
   startedAt: Date
   outputLanguage?: string
+  titleLocale?: string
   summaryMode: SummaryMode
   workspace: WorkspaceSelection
   meetingSessionId?: string
@@ -51,10 +52,10 @@ export async function submitMeetingRecording(
   const payload: UploadGenerationInput = {
     file,
     sourceType: 'audio',
-    title: createMeetingRecordingTitle(input.startedAt, input.outputLanguage || 'zh-CN'),
+    title: createMeetingRecordingTitle(input.startedAt, input.titleLocale || 'zh-CN'),
     style: 'meeting',
     summaryMode: input.summaryMode,
-    outputLanguage: input.outputLanguage,
+    outputLanguage: input.outputLanguage || 'auto',
     workspace: input.workspace,
   }
   if (input.meetingSessionId) {

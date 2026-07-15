@@ -30,6 +30,7 @@ describe('noteGenerationClient', () => {
     expect(body.get('scope')).toBe('team')
     expect(body.get('team_id')).toBe('team-1')
     expect(body.get('source_type')).toBe('audio')
+    expect(body.get('output_language')).toBe('auto')
   })
 
   it('submits the original recording to the encoded idempotent meeting completion route', async () => {
@@ -48,6 +49,7 @@ describe('noteGenerationClient', () => {
     const body = vi.mocked(apiJson).mock.calls[0][1]?.body as FormData
     expect(body.get('file')).toBe(file)
     expect(body.get('scope')).toBe('personal')
+    expect(body.get('output_language')).toBe('auto')
   })
 
   it('uses the reported backend stage when a failed task reached summary generation', () => {

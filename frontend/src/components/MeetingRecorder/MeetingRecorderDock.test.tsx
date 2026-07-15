@@ -289,7 +289,8 @@ describe('MeetingRecorderDock', () => {
     await waitFor(() => {
       expect(meetingGenerationMock.submitMeetingRecording).toHaveBeenCalledWith(expect.objectContaining({
         audioBlob: expect.any(Blob),
-        outputLanguage: 'zh-CN',
+        outputLanguage: 'auto',
+        titleLocale: 'zh-CN',
         summaryMode: 'default',
         workspace: { scope: 'personal' },
       }))

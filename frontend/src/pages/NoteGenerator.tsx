@@ -23,7 +23,7 @@ export function NoteGenerator() {
   const [summaryMode, setSummaryMode] = useState<SummaryMode>('default')
   const [, setTaskId] = useState('')
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
-  const { copy, language } = useI18n()
+  const { copy } = useI18n()
 
   const {
     status,
@@ -147,7 +147,7 @@ export function NoteGenerator() {
       formData.append('source_type', sourceType)
       formData.append('title', selectedFile.name)
       formData.append('summary_mode', summaryMode)
-      formData.append('output_language', language)
+      formData.append('output_language', 'auto')
       formData.append('scope', generationWorkspace.scope)
       if (generationWorkspace.scope === 'team') {
         formData.append('team_id', generationWorkspace.teamId)

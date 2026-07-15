@@ -147,6 +147,9 @@ class NoteService:
             "style": result.get("style") or run.get("style"),
             "summaryMode": result.get("summaryMode") or run.get("summaryMode"),
             "outputLanguage": result.get("outputLanguage") or run.get("outputLanguage"),
+            "requestedOutputLanguage": result.get("requestedOutputLanguage"),
+            "resolvedOutputLanguage": result.get("resolvedOutputLanguage")
+            or result.get("outputLanguage"),
             "stageRunIds": stage_runs,
             "diagnostics": {
                 "resolvedModels": _sanitize_diagnostics(run.get("resolvedModels")),
@@ -273,6 +276,7 @@ def _map_vilab_run_status(run: dict) -> tuple[str, str]:
 
 def _public_run_metadata(run: dict) -> dict:
     progress = run.get("progress") if isinstance(run.get("progress"), dict) else {}
+    result = run.get("result") if isinstance(run.get("result"), dict) else {}
     children = run.get("childRuns") if isinstance(run.get("childRuns"), list) else []
     child_stages = [
         {
@@ -292,6 +296,14 @@ def _public_run_metadata(run: dict) -> dict:
         "childStages": child_stages,
         "resolvedModels": _sanitize_diagnostics(run.get("resolvedModels")),
         "timings": _sanitize_diagnostics(run.get("timings")),
+        "language": {
+            key: value
+            for key, value in {
+                "requested": result.get("requestedOutputLanguage"),
+                "resolved": result.get("resolvedOutputLanguage") or result.get("outputLanguage"),
+            }.items()
+            if value
+        },
     }
     return {key: value for key, value in metadata.items() if value not in (None, {}, [])}
 
@@ -367,6 +379,7 @@ def _speaker_trace(run):
             "postprocessProvider": resolved.get("postprocessProviderId"),
         },
         "postprocess": _sanitize_diagnostics(result.get("postprocess")),
+        "language": _sanitize_diagnostics(result.get("language")),
         "speakerCount": speaker_count,
         "timings": _sanitize_diagnostics(run.get("timings") or result.get("timings")),
     }
@@ -385,6 +398,10 @@ def _summary_trace(run):
         "provider": _sanitize_diagnostics(provider),
         "fallbackUsed": bool(result.get("fallbackUsed") or provider.get("fallbackUsed")),
         "errorCategory": provider.get("errorCategory") or result.get("errorCategory"),
+        "requestedOutputLanguage": result.get("requestedOutputLanguage"),
+        "resolvedOutputLanguage": result.get("resolvedOutputLanguage")
+        or result.get("outputLanguage"),
+        "language": _sanitize_diagnostics(result.get("language")),
     }
 
 
@@ -396,4 +413,7 @@ def _note_trace(run):
         "source": _sanitize_diagnostics(source),
         "speakerTranscriptRunId": source.get("speakerTranscriptRunId"),
         "summaryRunId": source.get("summaryRunId"),
+        "requestedOutputLanguage": result.get("requestedOutputLanguage"),
+        "resolvedOutputLanguage": result.get("resolvedOutputLanguage")
+        or result.get("outputLanguage"),
     }

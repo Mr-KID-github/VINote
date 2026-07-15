@@ -82,9 +82,7 @@ async function submitUpload(endpoint: string, input: UploadGenerationInput) {
   formData.append('style', input.style || 'meeting')
   formData.append('summary_mode', input.summaryMode)
 
-  if (input.outputLanguage) {
-    formData.append('output_language', input.outputLanguage)
-  }
+  formData.append('output_language', input.outputLanguage || 'auto')
   formData.append('scope', input.workspace?.scope || 'personal')
   if (input.workspace?.scope === 'team' && input.workspace.teamId) {
     formData.append('team_id', input.workspace.teamId)

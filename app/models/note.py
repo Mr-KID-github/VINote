@@ -9,7 +9,7 @@ from pydantic import BaseModel
 from app.models.audio import AudioDownloadResult
 from app.models.transcript import TranscriptResult
 
-OutputLanguage = Literal["en", "zh-CN"]
+OutputLanguage = Literal["auto", "en", "zh-CN"]
 SummaryMode = Literal["default", "accurate", "oneshot"]
 
 
@@ -18,7 +18,7 @@ class NoteRequest(BaseModel):
     style: Optional[str] = "detailed"
     summary_mode: SummaryMode = "default"
     extras: Optional[str] = None
-    output_language: Optional[OutputLanguage] = None
+    output_language: Optional[OutputLanguage] = "auto"
 
 
 class LocalFileRequest(BaseModel):
@@ -27,7 +27,7 @@ class LocalFileRequest(BaseModel):
     style: Optional[str] = "meeting"
     summary_mode: SummaryMode = "default"
     extras: Optional[str] = None
-    output_language: Optional[OutputLanguage] = None
+    output_language: Optional[OutputLanguage] = "auto"
 
 
 class NoteResponse(BaseModel):

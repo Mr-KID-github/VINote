@@ -423,7 +423,8 @@ export function MeetingRecorderDock({ autoStart = false }: MeetingRecorderDockPr
     const response = await submitMeetingRecording({
       audioBlob,
       startedAt,
-      outputLanguage: language,
+      outputLanguage: 'auto',
+      titleLocale: language,
       summaryMode: 'default',
       workspace: currentWorkspace,
       meetingSessionId: sessionId,

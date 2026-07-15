@@ -30,7 +30,7 @@ _job_repository = GenerationJobRepository()
 _team_repository = TeamRepository()
 _artifacts = TaskArtifactService()
 
-_ALLOWED_OUTPUT_LANGUAGES = {"en", "zh-CN"}
+_ALLOWED_OUTPUT_LANGUAGES = {"auto", "en", "zh-CN"}
 _ALLOWED_SUMMARY_MODES = {"default", "accurate", "oneshot"}
 _ALLOWED_MEDIA_EXTENSIONS = {
     ".mp3",
@@ -103,12 +103,12 @@ def _normalize_summary_mode(value: str) -> SummaryMode:
     return normalized  # type: ignore[return-value]
 
 
-def _normalize_output_language(value: str | None) -> str | None:
+def _normalize_output_language(value: str | None) -> str:
     if not value:
-        return None
+        return "auto"
     normalized = value.strip()
     if normalized not in _ALLOWED_OUTPUT_LANGUAGES:
-        raise ValueError("Invalid output_language. Allowed: en, zh-CN.")
+        raise ValueError("Invalid output_language. Allowed: auto, en, zh-CN.")
     return normalized
 
 

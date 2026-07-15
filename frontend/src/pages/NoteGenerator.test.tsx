@@ -92,6 +92,7 @@ describe('NoteGenerator failed generation recovery', () => {
     expect(apiMock.apiJson).not.toHaveBeenCalledWith('/api/generate', expect.anything())
     const formData = apiMock.apiJson.mock.calls[0][1].body as FormData
     expect(formData.get('source_type')).toBe('audio')
+    expect(formData.get('output_language')).toBe('auto')
   })
 
   it('lets users regenerate directly with the same audio file after a generation request fails', async () => {

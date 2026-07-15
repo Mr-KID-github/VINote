@@ -131,6 +131,7 @@ def test_audio_upload_preserves_bytes_and_repeated_polls_create_one_note(tmp_pat
     assert service.ready == [("audio", "user-a")]
     staged = Path(service.audio_submissions[0]["file_path"])
     assert staged.read_bytes() == b"original-audio"
+    assert service.audio_submissions[0]["output_language"] == "auto"
     source_media = artifacts.resolve_source_media(artifacts.find_task_dir(task_id))
     assert source_media is not None
     assert source_media.read_bytes() == b"original-audio"
@@ -165,6 +166,7 @@ def test_transcript_upload_uses_transcript_parent_input(tmp_path, monkeypatch):
     assert service.audio_submissions == []
     transcript = service.transcript_submissions[0]["transcript"]
     assert transcript.full_text == "First line\nSecond line"
+    assert service.transcript_submissions[0]["output_language"] == "auto"
 
 
 def test_readiness_failure_happens_before_upload_persistence(tmp_path, monkeypatch):

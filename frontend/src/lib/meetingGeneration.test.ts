@@ -61,7 +61,7 @@ describe('meetingGeneration', () => {
 
     expect(submitMeetingSessionRecording).toHaveBeenCalledWith(
       'meeting-session-1',
-      expect.objectContaining({ sourceType: 'audio' }),
+      expect.objectContaining({ sourceType: 'audio', outputLanguage: 'auto' }),
     )
     expect(submitUploadedSource).not.toHaveBeenCalled()
   })
