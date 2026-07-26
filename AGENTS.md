@@ -100,6 +100,7 @@ Important backend variables:
 - `WHISPER_*`, `FASTER_WHISPER_COMPUTE_TYPE`, `SENSEVOICE_*`: provider-specific transcription settings.
 - `SUMMARY_DEFAULT_MAX_CHARS`, `SUMMARY_DEFAULT_MAX_SEGMENTS`: thresholds that decide when `default` mode upgrades from one-shot to hierarchical summarization.
 - `SUMMARY_CHUNK_MAX_CHARS`, `SUMMARY_CHUNK_MAX_SEGMENTS`, `SUMMARY_CHUNK_OVERLAP_SEGMENTS`: chunk sizing controls for hierarchical summarization.
+- `YTDLP_REQUEST_SLEEP_SECONDS`, `YTDLP_DOWNLOAD_SLEEP_SECONDS`, `YTDLP_MAX_DOWNLOAD_SLEEP_SECONDS`: anonymous YouTube request pacing controls used to reduce rate-limit and bot challenges without requiring account cookies.
 - `APP_JWT_SECRET`, `AUTH_COOKIE_*`: backend-issued session cookie settings.
 - `DATABASE_URL`: required database connection string.
 - `SHARE_BASE_URL`: optional override for generated public share links; when empty, the backend tries to infer a LAN URL automatically.

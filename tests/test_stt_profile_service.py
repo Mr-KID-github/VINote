@@ -1,4 +1,3 @@
-import subprocess
 import unittest
 from datetime import datetime, timezone
 from unittest.mock import patch
@@ -230,20 +229,6 @@ class STTProfileServiceTest(unittest.TestCase):
         self.assertFalse(status.installed)
         self.assertEqual(status.provider, "faster-whisper")
         self.assertIn("requirements.local-transcribers.txt", status.install_command)
-
-    def test_install_local_support_runs_requirements_install(self):
-        service = STTProfileService(repository=FakeRepository())
-        completed = subprocess.CompletedProcess(args=[], returncode=0, stdout="installed", stderr="")
-
-        with patch("app.services.stt_profile_service.subprocess.run", return_value=completed) as run:
-            response = service.install_local_support()
-
-        self.assertTrue(response.ok)
-        self.assertIn("installed", response.output)
-        command = run.call_args.args[0]
-        self.assertEqual(command[1:4], ["-m", "pip", "install"])
-        self.assertTrue(str(command[-1]).endswith("requirements.local-transcribers.txt"))
-
 
 if __name__ == "__main__":
     unittest.main()

@@ -159,10 +159,8 @@ export function STTProfileManager() {
     error,
     localSupport,
     localSupportLoading,
-    installingLocalSupport,
     loadProfiles,
     loadLocalSupport,
-    installLocalSupport,
     createProfile,
     updateProfile,
     deleteProfile,
@@ -182,6 +180,13 @@ export function STTProfileManager() {
   const resetForm = () => {
     setEditingId(null)
     setDraft(getDefaultDraft())
+  }
+
+  const handleSetDefaultProfile = async (profile: STTProfile) => {
+    await setDefaultProfile(profile.id)
+    if (editingId === profile.id) {
+      setDraft((current) => ({ ...current, isDefault: true }))
+    }
   }
 
   const editingProfile = editingId ? profiles.find((profile) => profile.id === editingId) : null
@@ -289,7 +294,7 @@ export function STTProfileManager() {
                       </button>
                       {!profile.isDefault && (
                         <button
-                          onClick={() => void setDefaultProfile(profile.id)}
+                          onClick={() => void handleSetDefaultProfile(profile)}
                           className="rounded-xl border border-gray-200 px-3 py-2 text-sm hover:bg-gray-100 dark:border-gray-700 dark:hover:bg-gray-800"
                         >
                           {copy.sttProfiles.setDefault}
@@ -370,20 +375,14 @@ export function STTProfileManager() {
                   ? copy.sttProfiles.loading
                   : localSupport?.message || (localSupport?.installed ? copy.sttProfiles.localSupportInstalled : copy.sttProfiles.localSupportMissing)}
               </p>
-              <p className="mt-1 text-xs opacity-80">{copy.sttProfiles.localSupportModelHint}</p>
+              <p className="mt-1 text-xs opacity-80">
+                {localSupport?.installed
+                  ? copy.sttProfiles.localSupportModelHint
+                  : copy.sttProfiles.localSupportManualInstall}
+              </p>
               <code className="mt-3 block rounded-lg bg-white/70 px-3 py-2 text-xs text-gray-700 dark:bg-black/20 dark:text-gray-200">
                 {localSupport?.installCommand || 'pip install -r requirements.local-transcribers.txt'}
               </code>
-              {!localSupport?.installed && (
-                <button
-                  type="button"
-                  onClick={() => void installLocalSupport()}
-                  disabled={installingLocalSupport}
-                  className="mt-3 rounded-xl border border-amber-300 bg-white px-3 py-2 text-sm font-medium text-amber-800 hover:bg-amber-100 disabled:opacity-60 dark:border-amber-800 dark:bg-transparent dark:text-amber-200 dark:hover:bg-amber-900/20"
-                >
-                  {installingLocalSupport ? copy.sttProfiles.localSupportInstalling : copy.sttProfiles.localSupportInstall}
-                </button>
-              )}
             </div>
           )}
 

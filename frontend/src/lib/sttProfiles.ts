@@ -52,12 +52,6 @@ type ApiLocalSTTSupportStatus = {
   message: string
 }
 
-type ApiLocalSTTInstallResponse = {
-  ok: boolean
-  output: string
-  status: ApiLocalSTTSupportStatus
-}
-
 type ApiSTTProfile = {
   id: string
   name: string
@@ -106,9 +100,6 @@ const buildDraftPayload = (draft: Partial<STTProfileDraft>) => {
   if (draft.isDefault !== undefined) payload.is_default = draft.isDefault
   if (draft.isActive !== undefined) payload.is_active = draft.isActive
 
-  // The UI exposes an "Auto" option for STT language. Whisper's `language`
-  // parameter rejects the literal string "auto", so we strip it here and let
-  // the backend fall back to automatic language detection.
   const normalizeLanguage = (raw?: string) => {
     if (raw === undefined) return undefined
     const trimmed = raw.trim().toLowerCase()
@@ -183,13 +174,4 @@ export async function setDefaultSTTProfile(id: string) {
 export async function fetchLocalSTTSupport() {
   const data = await apiJson<ApiLocalSTTSupportStatus>('/api/stt-profiles/local-support')
   return mapLocalSupportStatus(data)
-}
-
-export async function installLocalSTTSupport() {
-  const data = await apiJson<ApiLocalSTTInstallResponse>('/api/stt-profiles/local-support/install', { method: 'POST' })
-  return {
-    ok: data.ok,
-    output: data.output,
-    status: mapLocalSupportStatus(data.status),
-  }
 }

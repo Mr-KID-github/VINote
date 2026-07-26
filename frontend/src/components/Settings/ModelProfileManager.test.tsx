@@ -34,10 +34,8 @@ const sttStoreMock = vi.hoisted(() => ({
     error: string
     localSupport: { provider: string; installed: boolean; installCommand: string; message: string } | null
     localSupportLoading: boolean
-    installingLocalSupport: boolean
     loadProfiles: ReturnType<typeof vi.fn>
     loadLocalSupport: ReturnType<typeof vi.fn>
-    installLocalSupport: ReturnType<typeof vi.fn>
     createProfile: ReturnType<typeof vi.fn>
     updateProfile: ReturnType<typeof vi.fn>
     deleteProfile: ReturnType<typeof vi.fn>
@@ -123,7 +121,7 @@ beforeEach(() => {
     createProfile: vi.fn(),
     updateProfile: vi.fn(),
     deleteProfile: vi.fn(),
-    setDefaultProfile: vi.fn(),
+    setDefaultProfile: vi.fn().mockResolvedValue(defaultModelProfiles[1]),
     testDraft: vi.fn(),
     testProfile: vi.fn().mockResolvedValue({
       ok: true,
@@ -145,14 +143,12 @@ beforeEach(() => {
       message: '本地 STT 支持尚未安装。',
     },
     localSupportLoading: false,
-    installingLocalSupport: false,
     loadProfiles: vi.fn(),
     loadLocalSupport: vi.fn(),
-    installLocalSupport: vi.fn(),
     createProfile: vi.fn(),
     updateProfile: vi.fn(),
     deleteProfile: vi.fn(),
-    setDefaultProfile: vi.fn(),
+    setDefaultProfile: vi.fn().mockResolvedValue(defaultSTTProfiles[0]),
   }
 })
 
@@ -207,6 +203,17 @@ describe('ModelProfileManager', () => {
     expect(defaultCheckbox).toBeChecked()
     expect(defaultCheckbox).toBeDisabled()
   })
+
+  it('syncs the edit form when the profile being edited becomes the default', async () => {
+    renderWithI18n(<ModelProfileManager />)
+
+    const card = screen.getByText('Silicon Flow').closest('div.rounded-3xl') as HTMLElement
+    await userEvent.click(within(card).getByRole('button', { name: '编辑' }))
+    await userEvent.click(within(card).getByRole('button', { name: '设为默认' }))
+
+    expect(modelStoreMock.state.setDefaultProfile).toHaveBeenCalledWith('silicon-flow')
+    expect(screen.getByRole('checkbox', { name: '作为我的默认配置' })).toBeChecked()
+  })
 })
 
 describe('STTProfileManager', () => {
@@ -223,17 +230,32 @@ describe('STTProfileManager', () => {
     expect(defaultCheckbox).toBeDisabled()
   })
 
-  it('shows a local STT install prompt and install action for faster-whisper', async () => {
+  it('syncs the edit form when the STT profile being edited becomes the default', async () => {
+    const secondaryProfile: STTProfile = {
+      ...defaultSTTProfiles[0],
+      id: 'stt-secondary',
+      name: 'Secondary STT',
+      isDefault: false,
+    }
+    sttStoreMock.state.profiles = [...defaultSTTProfiles, secondaryProfile]
+    sttStoreMock.state.setDefaultProfile.mockResolvedValue(secondaryProfile)
+    renderWithI18n(<STTProfileManager />)
+
+    const card = screen.getByText('Secondary STT').closest('div.rounded-3xl') as HTMLElement
+    await userEvent.click(within(card).getByRole('button', { name: '编辑' }))
+    await userEvent.click(within(card).getByRole('button', { name: '设为默认' }))
+
+    expect(sttStoreMock.state.setDefaultProfile).toHaveBeenCalledWith('stt-secondary')
+    expect(screen.getByRole('checkbox', { name: '作为我的默认 STT 配置' })).toBeChecked()
+  })
+
+  it('shows a manual local STT install command without a server mutation action', async () => {
     renderWithI18n(<STTProfileManager />)
 
     await userEvent.selectOptions(screen.getAllByRole('combobox')[0], 'faster-whisper')
 
     expect(screen.getByText('本地 STT 支持尚未安装。')).toBeInTheDocument()
     expect(screen.getByText('pip install -r requirements.local-transcribers.txt')).toBeInTheDocument()
-    const installButton = screen.getByRole('button', { name: '安装本地 STT 支持' })
-
-    await userEvent.click(installButton)
-
-    expect(sttStoreMock.state.installLocalSupport).toHaveBeenCalled()
+    expect(screen.queryByRole('button', { name: '安装本地 STT 支持' })).not.toBeInTheDocument()
   })
 })

@@ -68,12 +68,6 @@ class LocalSTTSupportStatus(BaseModel):
     message: str
 
 
-class LocalSTTInstallResponse(BaseModel):
-    ok: bool
-    output: str
-    status: LocalSTTSupportStatus
-
-
 class ResolvedSTTConfig(BaseModel):
     provider: STTProviderType
     model_name: Optional[str] = None

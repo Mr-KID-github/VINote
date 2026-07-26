@@ -105,6 +105,13 @@ export function ModelProfileManager() {
     await testProfile(profile.id)
   }
 
+  const handleSetDefaultProfile = async (profile: ModelProfile) => {
+    await setDefaultProfile(profile.id)
+    if (editingId === profile.id) {
+      setDraft((current) => ({ ...current, isDefault: true }))
+    }
+  }
+
   const formatConnectionResult = (result: typeof lastTestResult) => {
     if (!result) {
       return ''
@@ -244,7 +251,7 @@ export function ModelProfileManager() {
                       </button>
                       {!profile.isDefault && (
                         <button
-                          onClick={() => void setDefaultProfile(profile.id)}
+                          onClick={() => void handleSetDefaultProfile(profile)}
                           className="rounded-xl border border-gray-200 px-3 py-2 text-sm hover:bg-gray-100 dark:border-gray-700 dark:hover:bg-gray-800"
                         >
                           {copy.modelProfiles.setDefault}
