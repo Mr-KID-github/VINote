@@ -83,6 +83,7 @@ export function NoteGenerator() {
 
         if (data.status === 'success') {
           clearInterval(pollRef.current!)
+          pollRef.current = null
           setProgress(100)
           setCurrentStep('success')
           setStatus('success')
@@ -103,6 +104,7 @@ export function NoteGenerator() {
           setError(copy.generator.saveFailed)
         } else if (data.status === 'failed') {
           clearInterval(pollRef.current!)
+          pollRef.current = null
           setStatus('failed')
           setError(data.message || 'Generation failed')
         } else if (data.status === 'transcribing') {
@@ -124,6 +126,11 @@ export function NoteGenerator() {
   const handleGenerate = async () => {
     if ((uploadMode === 'url' && !videoUrl) || (uploadMode !== 'url' && !selectedFile)) {
       return
+    }
+
+    if (pollRef.current) {
+      clearInterval(pollRef.current)
+      pollRef.current = null
     }
 
     reset()
@@ -189,6 +196,14 @@ export function NoteGenerator() {
       setStatus('failed')
       setError(generationError instanceof Error ? generationError.message : copy.generator.unknownError)
     }
+  }
+
+  const handleEditInput = () => {
+    if (pollRef.current) {
+      clearInterval(pollRef.current)
+      pollRef.current = null
+    }
+    reset()
   }
 
   const selectedProfile = profiles.find((profile) => profile.id === selectedProfileId)
@@ -332,6 +347,31 @@ export function NoteGenerator() {
           <Wand2 className="w-5 h-5" />
           {status === 'idle' ? copy.generator.start : copy.generator.generating}
         </button>
+
+        {status === 'failed' ? (
+          <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 dark:border-amber-900/60 dark:bg-amber-950/30">
+            <p className="text-sm text-amber-800 dark:text-amber-200">
+              {copy.generator.failedRecoveryHint}
+            </p>
+            <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+              <button
+                type="button"
+                onClick={() => void handleGenerate()}
+                disabled={uploadMode === 'url' ? !videoUrl : !selectedFile}
+                className="flex-1 rounded-lg bg-primary-light px-4 py-2 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-primary-dark"
+              >
+                {copy.generator.retryGeneration}
+              </button>
+              <button
+                type="button"
+                onClick={handleEditInput}
+                className="flex-1 rounded-lg border border-amber-300 px-4 py-2 text-sm font-medium text-amber-800 transition-colors hover:bg-amber-100 dark:border-amber-800 dark:text-amber-100 dark:hover:bg-amber-900/40"
+              >
+                {copy.generator.editInput}
+              </button>
+            </div>
+          </div>
+        ) : null}
 
         <GenerateProgress
           status={status}

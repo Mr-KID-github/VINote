@@ -1,7 +1,7 @@
 {
   "name": "vinote-frontend",
   "private": true,
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "VINote desktop and web frontend",
   "type": "module",
   "author": "VINote",
@@ -32,6 +32,7 @@
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2.11.2",
+    "@testing-library/dom": "^10.4.1",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
     "@testing-library/user-event": "^14.6.1",
