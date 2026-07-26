@@ -57,6 +57,13 @@ const mergeProfile = (profiles: ModelProfile[], updated: ModelProfile) =>
     updated.isDefault && profile.id !== updated.id ? { ...profile, isDefault: false } : profile
   ))
 
+const clearProfileTestResult = (
+  results: Record<string, ConnectionTestResult>,
+  profileId: string,
+) => Object.fromEntries(
+  Object.entries(results).filter(([resultProfileId]) => resultProfileId !== profileId),
+)
+
 export const useModelProfileStore = create<ModelProfileState>((set, get) => ({
   ...emptyState,
   loadProfiles: async () => {
@@ -105,6 +112,7 @@ export const useModelProfileStore = create<ModelProfileState>((set, get) => ({
         profiles,
         saving: false,
         selectedProfileId: syncDefaultSelection(profiles, get().selectedProfileId),
+        profileTestResults: clearProfileTestResult(get().profileTestResults, id),
       })
       return updated
     } catch (error) {

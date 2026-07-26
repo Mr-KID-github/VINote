@@ -52,12 +52,6 @@ type ApiLocalSTTSupportStatus = {
   message: string
 }
 
-type ApiLocalSTTInstallResponse = {
-  ok: boolean
-  output: string
-  status: ApiLocalSTTSupportStatus
-}
-
 type ApiSTTProfile = {
   id: string
   name: string
@@ -173,13 +167,4 @@ export async function setDefaultSTTProfile(id: string) {
 export async function fetchLocalSTTSupport() {
   const data = await apiJson<ApiLocalSTTSupportStatus>('/api/stt-profiles/local-support')
   return mapLocalSupportStatus(data)
-}
-
-export async function installLocalSTTSupport() {
-  const data = await apiJson<ApiLocalSTTInstallResponse>('/api/stt-profiles/local-support/install', { method: 'POST' })
-  return {
-    ok: data.ok,
-    output: data.output,
-    status: mapLocalSupportStatus(data.status),
-  }
 }
