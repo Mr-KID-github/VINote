@@ -1,3 +1,4 @@
+import importlib.util
 from typing import Optional
 
 from fastapi import HTTPException
@@ -5,6 +6,7 @@ from fastapi import HTTPException
 from app.config import settings
 from app.models.stt_profile import (
     GROQ_STT_BASE_URL,
+    LocalSTTSupportStatus,
     STTProfileCreateRequest,
     STTProfileRecord,
     STTProfileResponse,
@@ -25,6 +27,22 @@ class STTProfileService:
             return None
         cleaned = value.strip()
         return cleaned or None
+
+    @staticmethod
+    def _local_support_install_command() -> str:
+        return "pip install -r requirements.local-transcribers.txt"
+
+    def get_local_support_status(self) -> LocalSTTSupportStatus:
+        installed = importlib.util.find_spec("faster_whisper") is not None
+        return LocalSTTSupportStatus(
+            installed=installed,
+            install_command=self._local_support_install_command(),
+            message=(
+                "本地 STT 支持已安装。所选模型可能会在首次使用时自动下载。"
+                if installed
+                else "本地 STT 支持尚未安装。"
+            ),
+        )
 
     def _normalize_fields(
         self,

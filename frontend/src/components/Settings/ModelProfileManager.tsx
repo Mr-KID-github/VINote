@@ -49,6 +49,8 @@ export function ModelProfileManager() {
     saving,
     error,
     lastTestResult,
+    profileTestResults,
+    testingProfileIds,
     loadProfiles,
     createProfile,
     updateProfile,
@@ -66,6 +68,9 @@ export function ModelProfileManager() {
     setEditingId(null)
     setDraft(makeDraft())
   }
+
+  const editingProfile = editingId ? profiles.find((profile) => profile.id === editingId) : null
+  const editingDefaultProfile = Boolean(editingProfile?.isDefault)
 
   const startEdit = (profile: ModelProfile) => {
     setEditingId(profile.id)
@@ -90,9 +95,30 @@ export function ModelProfileManager() {
       baseUrl: field('baseUrl', draft.baseUrl),
       modelName: field('modelName', draft.modelName),
       apiKey: field('apiKey', draft.apiKey),
-      isDefault: formData.has('isDefault'),
+      isDefault: editingDefaultProfile || formData.has('isDefault'),
       isActive: formData.has('isActive'),
     }
+  }
+
+  const handleSavedProfileTest = async (profile: ModelProfile) => {
+    startEdit(profile)
+    await testProfile(profile.id)
+  }
+
+  const handleSetDefaultProfile = async (profile: ModelProfile) => {
+    await setDefaultProfile(profile.id)
+    if (editingId === profile.id) {
+      setDraft((current) => ({ ...current, isDefault: true }))
+    }
+  }
+
+  const formatConnectionResult = (result: typeof lastTestResult) => {
+    if (!result) {
+      return ''
+    }
+    return result.ok
+      ? copy.modelProfiles.connectionSucceeded(result.latencyMs)
+      : copy.modelProfiles.connectionFailed(result.errorMessage || copy.modelProfiles.unknownError)
   }
 
   const handleProviderChange = (provider: ProviderType) => {
@@ -162,7 +188,10 @@ export function ModelProfileManager() {
             </div>
           ) : (
             <div className="stealth-scroll max-h-[620px] space-y-3 overflow-y-auto pr-1">
-              {profiles.map((profile) => (
+              {profiles.map((profile) => {
+                const profileResult = profileTestResults?.[profile.id]
+                const isTestingProfile = testingProfileIds?.includes(profile.id)
+                return (
                 <div
                   key={profile.id}
                   className="rounded-3xl border border-gray-200 bg-white p-5 transition-colors hover:border-gray-300 dark:border-gray-800 dark:bg-[#1b1b1b] dark:hover:border-gray-700"
@@ -188,11 +217,26 @@ export function ModelProfileManager() {
                       </p>
                       <p className="mt-2 break-all text-xs leading-5 text-gray-400">{profile.baseUrl}</p>
                       <p className="mt-1 text-xs text-gray-400">{copy.modelProfiles.keyPrefix} {profile.apiKeyHint}</p>
+                      {(isTestingProfile || profileResult) && (
+                        <p
+                          className={clsx(
+                            'mt-3 inline-flex rounded-full px-2.5 py-1 text-xs font-medium',
+                            isTestingProfile
+                              ? 'bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-300'
+                              : profileResult?.ok
+                                ? 'bg-green-50 text-green-700 dark:bg-green-900/20 dark:text-green-300'
+                                : 'bg-red-50 text-red-700 dark:bg-red-900/20 dark:text-red-300'
+                          )}
+                        >
+                          {isTestingProfile ? '测试中...' : formatConnectionResult(profileResult)}
+                        </p>
+                      )}
                     </div>
                     </div>
                     <div className="flex flex-wrap gap-2">
                       <button
-                        onClick={() => void testProfile(profile.id)}
+                        onClick={() => void handleSavedProfileTest(profile)}
+                        disabled={isTestingProfile}
                         className="inline-flex items-center gap-2 rounded-xl border border-gray-200 px-3 py-2 text-sm hover:bg-gray-100 dark:border-gray-700 dark:hover:bg-gray-800"
                         title={copy.modelProfiles.testConnection}
                       >
@@ -207,7 +251,7 @@ export function ModelProfileManager() {
                       </button>
                       {!profile.isDefault && (
                         <button
-                          onClick={() => void setDefaultProfile(profile.id)}
+                          onClick={() => void handleSetDefaultProfile(profile)}
                           className="rounded-xl border border-gray-200 px-3 py-2 text-sm hover:bg-gray-100 dark:border-gray-700 dark:hover:bg-gray-800"
                         >
                           {copy.modelProfiles.setDefault}
@@ -223,7 +267,8 @@ export function ModelProfileManager() {
                     </div>
                   </div>
                 </div>
-              ))}
+                )
+              })}
             </div>
           )}
         </div>
@@ -328,7 +373,8 @@ export function ModelProfileManager() {
               name="isDefault"
               type="checkbox"
               checked={draft.isDefault}
-              onChange={(event) => setDraft((current) => ({ ...current, isDefault: event.target.checked }))}
+              disabled={editingDefaultProfile}
+              onChange={(event) => setDraft((current) => ({ ...current, isDefault: editingDefaultProfile || event.target.checked }))}
               className="w-4 h-4"
             />
             <span className="text-sm">{copy.modelProfiles.useAsDefault}</span>

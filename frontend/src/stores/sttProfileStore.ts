@@ -2,9 +2,11 @@ import { create } from 'zustand'
 import {
   createSTTProfile,
   deleteSTTProfile,
+  fetchLocalSTTSupport,
   fetchSTTProfiles,
   setDefaultSTTProfile,
   updateSTTProfile,
+  type LocalSTTSupportStatus,
   type STTProfile,
   type STTProfileDraft,
 } from '../lib/sttProfiles'
@@ -16,8 +18,11 @@ interface STTProfileState {
   loading: boolean
   saving: boolean
   error: string
+  localSupport: LocalSTTSupportStatus | null
+  localSupportLoading: boolean
   selectedProfileId: string
   loadProfiles: () => Promise<void>
+  loadLocalSupport: () => Promise<void>
   createProfile: (draft: STTProfileDraft) => Promise<STTProfile>
   updateProfile: (id: string, draft: Partial<STTProfileDraft>) => Promise<STTProfile>
   deleteProfile: (id: string) => Promise<void>
@@ -31,6 +36,8 @@ const emptyState = {
   loading: false,
   saving: false,
   error: '',
+  localSupport: null as LocalSTTSupportStatus | null,
+  localSupportLoading: false,
   selectedProfileId: '',
 }
 
@@ -61,6 +68,18 @@ export const useSTTProfileStore = create<STTProfileState>((set, get) => ({
       set({
         loading: false,
         error: error instanceof Error ? error.message : 'Failed to load STT profiles',
+      })
+    }
+  },
+  loadLocalSupport: async () => {
+    set({ localSupportLoading: true, error: '' })
+    try {
+      const localSupport = await fetchLocalSTTSupport()
+      set({ localSupport, localSupportLoading: false })
+    } catch (error) {
+      set({
+        localSupportLoading: false,
+        error: error instanceof Error ? error.message : 'Failed to load local STT support status',
       })
     }
   },

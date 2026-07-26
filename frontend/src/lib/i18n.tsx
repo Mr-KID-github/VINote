@@ -271,6 +271,10 @@ const messages = {
       saveChanges: 'Save changes',
       createProfile: 'Create profile',
       keyHint: 'Only Groq STT profiles store an API key. Local and self-hosted profiles do not.',
+      localSupportInstalled: 'Local STT support is installed.',
+      localSupportMissing: 'Local STT support is not installed yet.',
+      localSupportManualInstall: 'Run the command below manually in the backend environment. Server-side installation is intentionally disabled.',
+      localSupportModelHint: 'The selected model may be downloaded automatically on first use.',
     },
   },
   'zh-CN': {
@@ -541,6 +545,10 @@ const messages = {
       saveChanges: '保存修改',
       createProfile: '创建配置',
       keyHint: '只有 Groq STT 配置会保存 API Key。本地或自托管配置不会保存密钥。',
+      localSupportInstalled: '本地 STT 支持已安装。',
+      localSupportMissing: '本地 STT 支持尚未安装。',
+      localSupportManualInstall: '请在后端运行环境中手动执行以下命令；服务器端远程安装入口已禁用。',
+      localSupportModelHint: '所选模型可能会在首次使用时自动下载。',
     },
   },
 } as const

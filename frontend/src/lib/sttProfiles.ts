@@ -38,6 +38,20 @@ export interface STTProfileDraft {
   isActive: boolean
 }
 
+export interface LocalSTTSupportStatus {
+  provider: string
+  installed: boolean
+  installCommand: string
+  message: string
+}
+
+type ApiLocalSTTSupportStatus = {
+  provider: string
+  installed: boolean
+  install_command: string
+  message: string
+}
+
 type ApiSTTProfile = {
   id: string
   name: string
@@ -70,6 +84,13 @@ const mapProfile = (profile: ApiSTTProfile): STTProfile => ({
   isActive: profile.is_active,
   createdAt: profile.created_at,
   updatedAt: profile.updated_at,
+})
+
+const mapLocalSupportStatus = (status: ApiLocalSTTSupportStatus): LocalSTTSupportStatus => ({
+  provider: status.provider,
+  installed: status.installed,
+  installCommand: status.install_command,
+  message: status.message,
 })
 
 const buildDraftPayload = (draft: Partial<STTProfileDraft>) => {
@@ -141,4 +162,9 @@ export async function deleteSTTProfile(id: string) {
 export async function setDefaultSTTProfile(id: string) {
   const data = await apiJson<ApiSTTProfile>(`/api/stt-profiles/${id}/set-default`, { method: 'POST' })
   return mapProfile(data)
+}
+
+export async function fetchLocalSTTSupport() {
+  const data = await apiJson<ApiLocalSTTSupportStatus>('/api/stt-profiles/local-support')
+  return mapLocalSupportStatus(data)
 }

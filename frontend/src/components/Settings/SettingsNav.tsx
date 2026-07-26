@@ -26,13 +26,13 @@ export function SettingsNav({ activeTab, onChange }: SettingsNavProps) {
   ]
 
   return (
-    <nav className="w-52 space-y-1">
+    <nav className="w-full shrink-0 space-y-1 lg:sticky lg:top-6 lg:w-40 lg:self-start xl:w-44 2xl:w-48">
       {tabs.map((tab) => (
         <button
           key={tab.key}
           onClick={() => onChange(tab.key)}
           className={clsx(
-            'w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left transition-colors',
+            'w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-left transition-colors',
             activeTab === tab.key
               ? 'bg-primary-light/10 dark:bg-primary-dark/10 text-primary-light dark:text-primary-dark'
               : 'hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-400'

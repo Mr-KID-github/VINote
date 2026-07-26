@@ -18,6 +18,13 @@ class AppFactoryTest(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json(), {"status": "ok"})
 
+    def test_regular_users_cannot_trigger_server_dependency_installation(self):
+        app = create_app()
+
+        route_paths = {route.path for route in app.routes}
+
+        self.assertNotIn("/api/stt-profiles/local-support/install", route_paths)
+
 
 if __name__ == "__main__":
     unittest.main()

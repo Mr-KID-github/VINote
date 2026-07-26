@@ -203,6 +203,15 @@ class STTProfileServiceTest(unittest.TestCase):
         self.assertIsNone(repository.updated_payload.api_key)
         self.assertIsNone(repository.updated_payload.base_url)
 
+    def test_local_support_status_reports_faster_whisper_dependency(self):
+        service = STTProfileService(repository=FakeRepository())
+
+        with patch("app.services.stt_profile_service.importlib.util.find_spec", return_value=None):
+            status = service.get_local_support_status()
+
+        self.assertFalse(status.installed)
+        self.assertEqual(status.provider, "faster-whisper")
+        self.assertIn("requirements.local-transcribers.txt", status.install_command)
 
 if __name__ == "__main__":
     unittest.main()

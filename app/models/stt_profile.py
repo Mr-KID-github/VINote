@@ -61,6 +61,13 @@ class STTProfileResponse(BaseModel):
     updated_at: Optional[datetime] = None
 
 
+class LocalSTTSupportStatus(BaseModel):
+    provider: str = "faster-whisper"
+    installed: bool
+    install_command: str
+    message: str
+
+
 class ResolvedSTTConfig(BaseModel):
     provider: STTProviderType
     model_name: Optional[str] = None

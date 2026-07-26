@@ -157,7 +157,10 @@ export function STTProfileManager() {
     loading,
     saving,
     error,
+    localSupport,
+    localSupportLoading,
     loadProfiles,
+    loadLocalSupport,
     createProfile,
     updateProfile,
     deleteProfile,
@@ -168,10 +171,26 @@ export function STTProfileManager() {
     void loadProfiles()
   }, [loadProfiles])
 
+  useEffect(() => {
+    if (draft.provider === 'faster-whisper') {
+      void loadLocalSupport()
+    }
+  }, [draft.provider, loadLocalSupport])
+
   const resetForm = () => {
     setEditingId(null)
     setDraft(getDefaultDraft())
   }
+
+  const handleSetDefaultProfile = async (profile: STTProfile) => {
+    await setDefaultProfile(profile.id)
+    if (editingId === profile.id) {
+      setDraft((current) => ({ ...current, isDefault: true }))
+    }
+  }
+
+  const editingProfile = editingId ? profiles.find((profile) => profile.id === editingId) : null
+  const editingDefaultProfile = Boolean(editingProfile?.isDefault)
 
   const startEdit = (profile: STTProfile) => {
     setEditingId(profile.id)
@@ -188,10 +207,11 @@ export function STTProfileManager() {
   }
 
   const handleSave = async () => {
+    const draftToSave = editingDefaultProfile ? { ...draft, isDefault: true } : draft
     if (editingId) {
-      await updateProfile(editingId, draft)
+      await updateProfile(editingId, draftToSave)
     } else {
-      await createProfile(draft)
+      await createProfile(draftToSave)
     }
     resetForm()
   }
@@ -203,6 +223,7 @@ export function STTProfileManager() {
   const showDevice = draft.provider === 'whisper' || draft.provider === 'faster-whisper'
   const showComputeType = draft.provider === 'faster-whisper'
   const showUseGpu = draft.provider === 'sensevoice-local'
+  const showLocalSupport = draft.provider === 'faster-whisper'
   const availableLanguageOptions = languageOptions.filter((option) => (
     draft.provider === 'groq' ? option.value !== 'auto' : option.value !== ''
   ))
@@ -223,7 +244,7 @@ export function STTProfileManager() {
             </div>
             <button
               onClick={resetForm}
-              className="inline-flex items-center justify-center gap-2 self-start rounded-xl border border-gray-200 px-4 py-2.5 font-medium hover:bg-gray-100 dark:border-gray-700 dark:hover:bg-gray-800 transition-colors"
+              className="inline-flex items-center justify-center gap-2 self-start whitespace-nowrap rounded-xl border border-gray-200 px-4 py-2.5 font-medium hover:bg-gray-100 dark:border-gray-700 dark:hover:bg-gray-800 transition-colors"
             >
               <Plus className="w-4 h-4" />
               {copy.sttProfiles.newProfile}
@@ -273,7 +294,7 @@ export function STTProfileManager() {
                       </button>
                       {!profile.isDefault && (
                         <button
-                          onClick={() => void setDefaultProfile(profile.id)}
+                          onClick={() => void handleSetDefaultProfile(profile)}
                           className="rounded-xl border border-gray-200 px-3 py-2 text-sm hover:bg-gray-100 dark:border-gray-700 dark:hover:bg-gray-800"
                         >
                           {copy.sttProfiles.setDefault}
@@ -339,6 +360,31 @@ export function STTProfileManager() {
               ))}
             </select>
           </div>
+
+          {showLocalSupport && (
+            <div
+              className={clsx(
+                'rounded-2xl border p-4 text-sm',
+                localSupport?.installed
+                  ? 'border-green-200 bg-green-50 text-green-800 dark:border-green-900/40 dark:bg-green-900/15 dark:text-green-200'
+                  : 'border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900/40 dark:bg-amber-900/15 dark:text-amber-200'
+              )}
+            >
+              <p className="font-medium">
+                {localSupportLoading
+                  ? copy.sttProfiles.loading
+                  : localSupport?.message || (localSupport?.installed ? copy.sttProfiles.localSupportInstalled : copy.sttProfiles.localSupportMissing)}
+              </p>
+              <p className="mt-1 text-xs opacity-80">
+                {localSupport?.installed
+                  ? copy.sttProfiles.localSupportModelHint
+                  : copy.sttProfiles.localSupportManualInstall}
+              </p>
+              <code className="mt-3 block rounded-lg bg-white/70 px-3 py-2 text-xs text-gray-700 dark:bg-black/20 dark:text-gray-200">
+                {localSupport?.installCommand || 'pip install -r requirements.local-transcribers.txt'}
+              </code>
+            </div>
+          )}
 
           {showModel && (
             <div>
@@ -442,7 +488,8 @@ export function STTProfileManager() {
             <input
               type="checkbox"
               checked={draft.isDefault}
-              onChange={(event) => setDraft((current) => ({ ...current, isDefault: event.target.checked }))}
+              disabled={editingDefaultProfile}
+              onChange={(event) => setDraft((current) => ({ ...current, isDefault: editingDefaultProfile || event.target.checked }))}
               className="w-4 h-4"
             />
             <span className="text-sm">{copy.sttProfiles.useAsDefault}</span>
