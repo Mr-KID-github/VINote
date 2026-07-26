@@ -27,13 +27,16 @@ class FakeDownloader:
 
 
 class FakeTranscriptionService:
-    def __init__(self):
+    def __init__(self, *, require_existing_audio: bool = False):
         self.calls: list[dict] = []
+        self.require_existing_audio = require_existing_audio
 
     def get_audio_duration(self, file_path: str) -> float:
         return 42.0
 
     def transcribe(self, *, audio_path, load_cached, save_transcript, update_status=None, user_id=None, stt_profile_id=None):
+        if self.require_existing_audio and not Path(audio_path).exists():
+            raise FileNotFoundError(audio_path)
         self.calls.append({
             "audio_path": audio_path,
             "user_id": user_id,
@@ -171,6 +174,35 @@ class NoteServiceTest(unittest.TestCase):
             self.assertEqual(saved_result["title"], "Demo Note")
             self.assertEqual(saved_result["summary_mode"], "accurate")
             self.assertTrue(Path(saved_result["output_path"]).exists())
+
+    def test_generate_from_uploaded_task_media_rebases_audio_path_after_finalize(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            artifact_service = TaskArtifactService(Path(temp_dir) / "output")
+            task_dir = artifact_service.create_task_dir("upload-task")
+            media_dir = task_dir / "media"
+            media_dir.mkdir(parents=True, exist_ok=True)
+            audio_file = media_dir / "source_audio.wav"
+            audio_file.write_text("fake audio", encoding="utf-8")
+
+            transcription_service = FakeTranscriptionService(require_existing_audio=True)
+            service = NoteService(
+                transcription_service=transcription_service,
+                llm_service=FakeLLMService(),
+                artifact_service=artifact_service,
+            )
+
+            result = service.generate_from_file(
+                file_path=str(audio_file),
+                task_id="upload-task",
+                title="Uploaded Audio",
+            )
+
+            self.assertEqual(len(transcription_service.calls), 1)
+            transcribed_path = Path(transcription_service.calls[0]["audio_path"])
+            self.assertTrue(transcribed_path.exists())
+            self.assertIn("Uploaded Audio", str(transcribed_path))
+            self.assertEqual(transcribed_path.name, "source_audio.wav")
+            self.assertEqual(result.audio_meta.file_path, str(transcribed_path))
 
 
 if __name__ == "__main__":

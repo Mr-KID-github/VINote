@@ -1,6 +1,7 @@
 """
 Audio transcription helpers.
 """
+import importlib.util
 import math
 import logging
 import subprocess
@@ -48,6 +49,11 @@ def create_transcriber(config: ResolvedSTTConfig | None = None) -> Transcriber:
         )
 
     if t_type == "whisper":
+        if importlib.util.find_spec("whisper") is None:
+            raise RuntimeError(
+                "Whisper STT provider requires `pip install openai-whisper` in the backend environment. "
+                "Install it or choose a Groq/faster-whisper STT profile."
+            )
         from app.transcribers.whisper_transcriber import WhisperTranscriber
 
         return WhisperTranscriber(
@@ -60,7 +66,8 @@ def create_transcriber(config: ResolvedSTTConfig | None = None) -> Transcriber:
             from app.transcribers.faster_whisper_transcriber import FasterWhisperTranscriber
         except ImportError as exc:
             raise RuntimeError(
-                "TRANSCRIBER_TYPE=faster-whisper requires `pip install -r requirements.local-transcribers.txt`."
+                "faster-whisper STT provider requires `pip install -r requirements.local-transcribers.txt` "
+                "in the backend environment."
             ) from exc
 
         return FasterWhisperTranscriber(

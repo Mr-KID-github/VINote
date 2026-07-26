@@ -1,0 +1,81 @@
+// Persists recorded audio blobs in IndexedDB so a meeting recording can be
+// retried even after the recorder window is closed, the page is reloaded, or
+// the device restarts. The blob is keyed by an opaque recording id that is
+// also written into the meeting recorder store, so we can recover it from
+// the note detail page later.
+
+const DB_NAME = 'vinote-meeting-audio'
+const DB_VERSION = 1
+const STORE_NAME = 'recordings'
+
+let dbPromise: Promise<IDBDatabase> | null = null
+
+function isIndexedDBSupported() {
+  return typeof indexedDB !== 'undefined'
+}
+
+function openDatabase(): Promise<IDBDatabase> {
+  if (!isIndexedDBSupported()) {
+    return Promise.reject(new Error('indexeddb_unsupported'))
+  }
+  if (dbPromise) return dbPromise
+  dbPromise = new Promise((resolve, reject) => {
+    const request = indexedDB.open(DB_NAME, DB_VERSION)
+    request.onupgradeneeded = () => {
+      const db = request.result
+      if (!db.objectStoreNames.contains(STORE_NAME)) {
+        db.createObjectStore(STORE_NAME)
+      }
+    }
+    request.onsuccess = () => resolve(request.result)
+    request.onerror = () => reject(request.error ?? new Error('indexeddb_open_failed'))
+    request.onblocked = () => reject(new Error('indexeddb_open_blocked'))
+  })
+  return dbPromise
+}
+
+export async function saveRecordedAudio(id: string, blob: Blob): Promise<void> {
+  if (!isIndexedDBSupported()) return
+  const db = await openDatabase()
+  await new Promise<void>((resolve, reject) => {
+    const tx = db.transaction(STORE_NAME, 'readwrite')
+    tx.objectStore(STORE_NAME).put(blob, id)
+    tx.oncomplete = () => resolve()
+    tx.onerror = () => reject(tx.error ?? new Error('indexeddb_write_failed'))
+    tx.onabort = () => reject(tx.error ?? new Error('indexeddb_write_aborted'))
+  })
+}
+
+export async function getRecordedAudio(id: string): Promise<Blob | null> {
+  if (!isIndexedDBSupported()) return null
+  try {
+    const db = await openDatabase()
+    return await new Promise<Blob | null>((resolve, reject) => {
+      const tx = db.transaction(STORE_NAME, 'readonly')
+      const request = tx.objectStore(STORE_NAME).get(id)
+      request.onsuccess = () => resolve((request.result as Blob | undefined) ?? null)
+      request.onerror = () => reject(request.error ?? new Error('indexeddb_read_failed'))
+    })
+  } catch {
+    return null
+  }
+}
+
+export async function deleteRecordedAudio(id: string): Promise<void> {
+  if (!isIndexedDBSupported()) return
+  try {
+    const db = await openDatabase()
+    await new Promise<void>((resolve, reject) => {
+      const tx = db.transaction(STORE_NAME, 'readwrite')
+      tx.objectStore(STORE_NAME).delete(id)
+      tx.oncomplete = () => resolve()
+      tx.onerror = () => reject(tx.error ?? new Error('indexeddb_delete_failed'))
+    })
+  } catch {
+    // Best effort — missing audio in IndexedDB should not block the user.
+  }
+}
+
+export function generateRecordingId() {
+  return `rec-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
+}

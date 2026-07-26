@@ -100,11 +100,18 @@ const buildDraftPayload = (draft: Partial<STTProfileDraft>) => {
   if (draft.isDefault !== undefined) payload.is_default = draft.isDefault
   if (draft.isActive !== undefined) payload.is_active = draft.isActive
 
+  const normalizeLanguage = (raw?: string) => {
+    if (raw === undefined) return undefined
+    const trimmed = raw.trim().toLowerCase()
+    if (!trimmed || trimmed === 'auto') return null
+    return trimmed
+  }
+
   switch (draft.provider) {
     case 'groq':
       if (draft.modelName !== undefined) payload.model_name = draft.modelName
       if (draft.apiKey !== undefined && draft.apiKey.trim()) payload.api_key = draft.apiKey
-      if (draft.language !== undefined && draft.language.trim()) payload.language = draft.language
+      if (draft.language !== undefined) payload.language = normalizeLanguage(draft.language)
       break
     case 'whisper':
       if (draft.modelName !== undefined) payload.model_name = draft.modelName
@@ -114,15 +121,15 @@ const buildDraftPayload = (draft: Partial<STTProfileDraft>) => {
       if (draft.modelName !== undefined) payload.model_name = draft.modelName
       if (draft.device !== undefined) payload.device = draft.device
       if (draft.computeType !== undefined) payload.compute_type = draft.computeType
-      if (draft.language !== undefined && draft.language.trim()) payload.language = draft.language
+      if (draft.language !== undefined) payload.language = normalizeLanguage(draft.language)
       break
     case 'sensevoice':
       if (draft.baseUrl !== undefined) payload.base_url = draft.baseUrl
-      if (draft.language !== undefined) payload.language = draft.language
+      if (draft.language !== undefined) payload.language = normalizeLanguage(draft.language)
       break
     case 'sensevoice-local':
       if (draft.modelName !== undefined) payload.model_name = draft.modelName
-      if (draft.language !== undefined) payload.language = draft.language
+      if (draft.language !== undefined) payload.language = normalizeLanguage(draft.language)
       if (draft.useGpu !== undefined) payload.use_gpu = draft.useGpu
       break
     default:

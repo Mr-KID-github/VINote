@@ -1,8 +1,8 @@
 import type { NoteRecord } from '../stores/noteLibraryStore'
 import type { WorkspaceSelection } from '../stores/teamStore'
 import {
+  fetchTaskStatus,
   submitUploadedSource,
-  waitForTaskCompletion,
   type SummaryMode,
   type TaskResponse,
   type TaskStatusResponse,
@@ -10,6 +10,7 @@ import {
 } from './noteGenerationClient'
 
 export const MEETING_NOTE_SOURCE_TYPE = 'meeting_recording'
+export type MeetingGenerationStage = 'uploading' | 'transcribing' | 'summarizing' | 'saving' | 'completed'
 
 type SaveNote = (
   title: string,
@@ -18,6 +19,7 @@ type SaveNote = (
   taskId?: string,
   workspace?: WorkspaceSelection,
   sourceType?: string,
+  status?: string,
 ) => Promise<NoteRecord | null>
 
 interface SubmitMeetingRecordingInput {
@@ -31,6 +33,17 @@ interface SubmitMeetingRecordingInput {
 
 interface SubmitMeetingRecordingDependencies {
   submitUploadedSource?: (input: UploadGenerationInput) => Promise<TaskResponse>
+  onStage?: (stage: MeetingGenerationStage) => void
+}
+
+export class MeetingGenerationError extends Error {
+  stage: 'uploading' | 'transcribing' | 'summarizing' | 'saving'
+
+  constructor(stage: MeetingGenerationError['stage'], message: string) {
+    super(message)
+    this.name = 'MeetingGenerationError'
+    this.stage = stage
+  }
 }
 
 export function createMeetingRecordingTitle(date = new Date(), locale = 'zh-CN') {
@@ -57,19 +70,62 @@ export async function submitMeetingRecording(
   input: SubmitMeetingRecordingInput,
   dependencies: SubmitMeetingRecordingDependencies = {},
 ) {
+  dependencies.onStage?.('uploading')
   const file = buildMeetingRecordingFile(input.audioBlob, input.startedAt)
   const submit = dependencies.submitUploadedSource || submitUploadedSource
 
-  return submit({
-    file,
-    sourceType: 'audio',
-    title: createMeetingRecordingTitle(input.startedAt, input.outputLanguage || 'zh-CN'),
-    style: 'meeting',
-    summaryMode: input.summaryMode,
-    outputLanguage: input.outputLanguage,
-    modelProfileId: input.modelProfileId,
-    sttProfileId: input.sttProfileId,
-  })
+  try {
+    return await submit({
+      file,
+      sourceType: 'audio',
+      title: createMeetingRecordingTitle(input.startedAt, input.outputLanguage || 'zh-CN'),
+      style: 'meeting',
+      summaryMode: input.summaryMode,
+      outputLanguage: input.outputLanguage,
+      modelProfileId: input.modelProfileId,
+      sttProfileId: input.sttProfileId,
+    })
+  } catch (error) {
+    throw new MeetingGenerationError('uploading', error instanceof Error ? error.message : 'Upload failed')
+  }
+}
+
+async function defaultDelay() {
+  await new Promise((resolve) => window.setTimeout(resolve, 2000))
+}
+
+export async function waitForMeetingTaskCompletion({
+  taskId,
+  fetchStatus = fetchTaskStatus,
+  onStage,
+  onProgress,
+  delay = defaultDelay,
+}: {
+  taskId: string
+  fetchStatus?: (taskId: string) => Promise<TaskStatusResponse>
+  onStage?: (stage: MeetingGenerationStage) => void
+  onProgress?: (status: TaskStatusResponse) => void
+  delay?: () => Promise<void>
+}) {
+  let lastRunningStage: 'transcribing' | 'summarizing' = 'transcribing'
+
+  for (;;) {
+    const status = await fetchStatus(taskId)
+    onProgress?.(status)
+    if (status.status === 'transcribing') {
+      lastRunningStage = 'transcribing'
+      onStage?.('transcribing')
+    } else if (status.status === 'summarizing' || status.status === 'screenshots') {
+      lastRunningStage = 'summarizing'
+      onStage?.('summarizing')
+    } else if (status.status === 'success') {
+      return status
+    } else if (status.status === 'failed' || status.status === 'not_found') {
+      throw new MeetingGenerationError(lastRunningStage, status.message || 'Meeting generation failed')
+    }
+
+    await delay()
+  }
 }
 
 export async function completeMeetingRecordingGeneration({
@@ -77,6 +133,7 @@ export async function completeMeetingRecordingGeneration({
   workspace,
   saveNote,
   fetchTaskStatus,
+  onStage,
   onProgress,
   delay,
 }: {
@@ -84,21 +141,24 @@ export async function completeMeetingRecordingGeneration({
   workspace: WorkspaceSelection
   saveNote: SaveNote
   fetchTaskStatus?: (taskId: string) => Promise<TaskStatusResponse>
+  onStage?: (stage: MeetingGenerationStage) => void
   onProgress?: (status: TaskStatusResponse) => void
   delay?: () => Promise<void>
 }) {
-  const status = await waitForTaskCompletion({
+  const status = await waitForMeetingTaskCompletion({
     taskId,
     fetchStatus: fetchTaskStatus,
+    onStage,
     onProgress,
     delay,
   })
   const result = status.result
 
   if (!result) {
-    throw new Error('Meeting summary completed without a result.')
+    throw new MeetingGenerationError('summarizing', 'Meeting summary completed without a result.')
   }
 
+  onStage?.('saving')
   const note = await saveNote(
     result.title || createMeetingRecordingTitle(),
     result.markdown || '',
@@ -109,9 +169,10 @@ export async function completeMeetingRecordingGeneration({
   )
 
   if (!note) {
-    throw new Error('Meeting summary was generated but could not be saved.')
+    throw new MeetingGenerationError('saving', 'Meeting summary was generated but could not be saved.')
   }
 
+  onStage?.('completed')
   return note
 }
 
@@ -122,4 +183,28 @@ function resolveAudioExtension(mimeType: string) {
   if (normalized.includes('ogg')) return 'ogg'
   if (normalized.includes('wav')) return 'wav'
   return 'webm'
+}
+
+const AUDIO_EXTENSION_FALLBACKS = ['webm', 'mp4', 'm4a', 'wav', 'mp3', 'ogg'] as const
+
+export async function fetchMeetingAudioBlob(taskId: string): Promise<Blob> {
+  let lastError: unknown
+  for (const ext of AUDIO_EXTENSION_FALLBACKS) {
+    const url = `/api/task/${taskId}/artifacts/media/source_audio.${ext}`
+    try {
+      const response = await fetch(url, { credentials: 'include' })
+      if (response.ok) {
+        const contentType = response.headers.get('Content-Type') || `audio/${ext}`
+        const blob = await response.blob()
+        return new Blob([blob], { type: contentType })
+      }
+      lastError = new Error(`HTTP ${response.status} for ${ext}`)
+    } catch (fetchError) {
+      lastError = fetchError
+    }
+  }
+  throw new MeetingGenerationError(
+    'uploading',
+    `无法加载已保留的录音 (${lastError instanceof Error ? lastError.message : 'unknown'})`,
+  )
 }

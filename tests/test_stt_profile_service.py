@@ -131,6 +131,23 @@ class STTProfileServiceTest(unittest.TestCase):
         self.assertEqual(resolved.model_name, "whisper-large-v3-turbo")
         self.assertEqual(resolved.api_key, "plain-secret")
 
+    def test_resolve_config_strips_auto_language_for_whisper_family_profiles(self):
+        repository = FakeRepository()
+        repository.profile_record = make_record(
+            provider="faster-whisper",
+            model_name="base",
+            language="auto",
+            device="cpu",
+            compute_type="int8",
+            api_key_encrypted=None,
+        )
+        service = STTProfileService(repository=repository)
+
+        resolved = service.resolve_config(user_id="user-1", stt_profile_id="stt-profile-1")
+
+        self.assertEqual(resolved.provider, "faster-whisper")
+        self.assertIsNone(resolved.language)
+
     def test_resolve_config_rejects_inactive_selected_profile(self):
         repository = FakeRepository()
         repository.profile_record = make_record(is_active=False)

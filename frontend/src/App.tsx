@@ -2,6 +2,8 @@ import { Suspense, lazy, useEffect } from 'react'
 import { BrowserRouter, Route, Routes } from 'react-router-dom'
 import { AuthGuard } from './components/Auth/AuthGuard'
 import { MainLayout } from './components/Layout/MainLayout'
+import { MeetingRecorderDock } from './components/MeetingRecorder/MeetingRecorderDock'
+import { isRecorderWindowRoute } from './lib/desktopRecorderWindow'
 import { useAuthStore } from './stores/authStore'
 import { useThemeStore } from './stores/themeStore'
 
@@ -24,6 +26,7 @@ function RouteFallback() {
 function App() {
   const { resolvedTheme } = useThemeStore()
   const { initialize, initialized } = useAuthStore()
+  const recorderWindowRoute = isRecorderWindowRoute()
 
   useEffect(() => {
     void initialize()
@@ -33,8 +36,27 @@ function App() {
     document.documentElement.classList.toggle('dark', resolvedTheme === 'dark')
   }, [resolvedTheme])
 
+  useEffect(() => {
+    document.documentElement.classList.toggle('recorder-window-route', recorderWindowRoute)
+    document.body.classList.toggle('recorder-window-route', recorderWindowRoute)
+    return () => {
+      document.documentElement.classList.remove('recorder-window-route')
+      document.body.classList.remove('recorder-window-route')
+    }
+  }, [recorderWindowRoute])
+
   if (!initialized) {
     return <RouteFallback />
+  }
+
+  if (recorderWindowRoute) {
+    return (
+      <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+        <div className="meeting-recorder-window-route h-screen w-screen overflow-hidden bg-transparent">
+          <MeetingRecorderDock autoStart />
+        </div>
+      </BrowserRouter>
+    )
   }
 
   return (

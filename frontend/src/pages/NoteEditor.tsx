@@ -4,10 +4,11 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { MarkdownContent } from '../components/Markdown/MarkdownContent'
 import { KeyMomentsRail } from '../components/Notes/KeyMomentsRail'
 import { VideoReferencePanel } from '../components/Notes/VideoReferencePanel'
+import { RecordingRetryBar } from '../components/Notes/RecordingRetryBar'
 import { findActiveKeyMoment, type KeyMoment } from '../lib/markdownKeyMoments'
 import { useI18n } from '../lib/i18n'
 import { resolveContentUrl } from '../lib/videoLinks'
-import { type NoteShareRecord, useNoteLibraryStore } from '../stores/noteLibraryStore'
+import { type NoteRecord, type NoteShareRecord, useNoteLibraryStore } from '../stores/noteLibraryStore'
 
 type WorkspaceMode = 'write' | 'split' | 'preview'
 
@@ -169,6 +170,7 @@ export function NoteEditor() {
   const [shareError, setShareError] = useState('')
   const [sharePanelOpen, setSharePanelOpen] = useState(false)
   const [error, setError] = useState('')
+  const [currentNote, setCurrentNote] = useState<NoteRecord | null>(null)
   const [currentTimestamp, setCurrentTimestamp] = useState(0)
   const [jumpRequestId, setJumpRequestId] = useState(0)
   const [keyMoments, setKeyMoments] = useState<KeyMoment[]>([])
@@ -226,6 +228,7 @@ export function NoteEditor() {
       setTaskId(note.taskId || '')
       setNoteScope(note.scope)
       setNoteWorkspaceName(note.teamName || '')
+      setCurrentNote(note)
       setError('')
       setLoading(false)
 
@@ -436,13 +439,26 @@ export function NoteEditor() {
             <ArrowLeft className="h-5 w-5" />
           </button>
           <div className="min-w-0">
-            <input
-              type="text"
-              value={localTitle}
-              onChange={(event) => setLocalTitle(event.target.value)}
-              placeholder={copy.noteEditor.untitled}
-              className="w-full min-w-[220px] border-none bg-transparent text-lg font-semibold outline-none focus:ring-0"
-            />
+            <div className="flex items-center gap-2">
+              <input
+                type="text"
+                value={localTitle}
+                onChange={(event) => setLocalTitle(event.target.value)}
+                placeholder={copy.noteEditor.untitled}
+                className="w-full min-w-[220px] border-none bg-transparent text-lg font-semibold outline-none focus:ring-0"
+              />
+              {currentNote ? (
+                <RecordingRetryBar
+                  note={currentNote}
+                  onUpdated={(updated) => {
+                    setCurrentNote(updated)
+                    setLocalTitle(updated.title)
+                    setContent(updated.content)
+                    setTaskId(updated.taskId || '')
+                  }}
+                />
+              ) : null}
+            </div>
             <p className="text-xs text-gray-500 dark:text-gray-400">
               <span className="mr-2 inline-flex rounded-full bg-white/70 px-2 py-0.5 text-[11px] font-medium text-gray-600 dark:bg-[#1a1a1a] dark:text-gray-300">
                 {workspaceBadge}

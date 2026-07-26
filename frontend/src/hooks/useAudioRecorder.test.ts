@@ -2,7 +2,7 @@ import { act, renderHook } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useAudioRecorder } from './useAudioRecorder'
 
-type RecorderBehavior = 'normal' | 'missing-stop-event'
+type RecorderBehavior = 'normal' | 'missing-stop-event' | 'empty'
 
 let recorderBehavior: RecorderBehavior = 'normal'
 let lastRecorder: FakeMediaRecorder | null = null
@@ -26,12 +26,15 @@ class FakeMediaRecorder {
     this.state = 'recording'
   })
   requestData = vi.fn(() => {
+    if (recorderBehavior === 'empty') return
     this.emitChunk('request-data')
   })
   stop = vi.fn(() => {
     this.state = 'inactive'
-    this.emitChunk('stop-data')
-    if (recorderBehavior === 'normal') {
+    if (recorderBehavior !== 'empty') {
+      this.emitChunk('stop-data')
+    }
+    if (recorderBehavior === 'normal' || recorderBehavior === 'empty') {
       this.onstop?.()
     }
   })
@@ -106,5 +109,17 @@ describe('useAudioRecorder', () => {
     expect(blob.size).toBeGreaterThan(0)
     expect(stopTrack).toHaveBeenCalledTimes(1)
     expect(result.current.status).toBe('stopped')
+  })
+
+  it('rejects when MediaRecorder produces no audio bytes', async () => {
+    recorderBehavior = 'empty'
+    const { result } = renderHook(() => useAudioRecorder())
+
+    await act(async () => {
+      await result.current.start()
+    })
+
+    await expect(act(async () => result.current.stop())).rejects.toThrow('microphone_no_audio')
+    expect(stopTrack).toHaveBeenCalledTimes(1)
   })
 })
