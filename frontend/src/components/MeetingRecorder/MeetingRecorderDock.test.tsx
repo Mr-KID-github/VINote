@@ -306,19 +306,25 @@ describe('MeetingRecorderDock', () => {
     expect(screen.queryByRole('button', { name: 'Retry' })).not.toBeInTheDocument()
   })
 
-  it('closes the recorder immediately on close because audio is always saved to the notes library', async () => {
+  it('requires explicit confirmation before discarding an active recording', async () => {
     renderDock()
 
     await userEvent.click(screen.getByRole('button', { name: '开始会议录音' }))
     await userEvent.click(screen.getByRole('button', { name: '开始' }))
-    act(() => {
-      useMeetingRecorderStore.getState().setRecordedAudio(new Blob(['audio'], { type: 'audio/webm' }))
-    })
     await userEvent.click(screen.getByRole('button', { name: '关闭' }))
 
-    // No confirmation dialog — the audio is already saved.
+    expect(screen.getByRole('dialog', { name: '放弃这段会议录音？' })).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: 'recording' })).toBeInTheDocument()
+    expect(audioRecorderMock.reset).not.toHaveBeenCalled()
+
+    await userEvent.click(screen.getByRole('button', { name: '继续录音' }))
     expect(screen.queryByRole('dialog', { name: '放弃这段会议录音？' })).not.toBeInTheDocument()
-    // The launcher should be re-rendered once the panel closes.
+    expect(screen.getByRole('region', { name: 'recording' })).toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: '关闭' }))
+    await userEvent.click(screen.getByRole('button', { name: '放弃' }))
+
+    expect(audioRecorderMock.reset).toHaveBeenCalledTimes(1)
     await waitFor(() =>
       expect(screen.queryByRole('region', { name: 'recording' })).not.toBeInTheDocument(),
     )
@@ -437,7 +443,7 @@ describe('MeetingRecorderDock', () => {
     )
   })
 
-  it('keeps the native recorder window at 132 px across all states (no discard dialog resize)', async () => {
+  it('keeps the native recorder window at 132 px across all states, including discard confirmation', async () => {
     desktopRecorderWindowMock.isTauriRuntime.mockReturnValue(true)
     desktopRecorderWindowMock.isRecorderWindowRoute.mockReturnValue(true)
     renderDock({ autoStart: true })
@@ -460,11 +466,12 @@ describe('MeetingRecorderDock', () => {
     act(() => useMeetingRecorderStore.getState().dismissNotification())
     await waitFor(() => expect(desktopRecorderWindowMock.setRecorderWindowSize).toHaveBeenLastCalledWith(360, 132))
 
-    // Close should be immediate — no resize, no dialog.
+    // Discard confirmation replaces the compact panel without resizing it.
     act(() => {
       useMeetingRecorderStore.setState({ noteId: undefined, phase: 'recording', recordedAudio: new Blob(['a'], { type: 'audio/webm' }) })
     })
     await userEvent.click(screen.getByRole('button', { name: '关闭' }))
+    expect(screen.getByRole('dialog', { name: '放弃这段会议录音？' })).toBeInTheDocument()
     await waitFor(() => expect(desktopRecorderWindowMock.setRecorderWindowSize).toHaveBeenLastCalledWith(360, 132))
   })
 })

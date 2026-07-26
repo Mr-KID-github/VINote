@@ -161,13 +161,14 @@ export function MeetingRecorderDock({ autoStart = false }: MeetingRecorderDockPr
   const recorderCopy = copy.meetingRecorder
   const isRecorderWindow = isRecorderWindowRoute()
   const isDesktopMainWindow = isTauriRuntime() && !isRecorderWindow
-  const { saveNote, updateNote } = useNoteLibraryStore()
+  const { saveNote, updateNote, deleteNote } = useNoteLibraryStore()
   const { currentWorkspace } = useTeamStore()
   const { selectedProfileId: selectedModelProfileId, loadProfiles: loadModelProfiles } = useModelProfileStore()
   const { loadProfiles: loadSTTProfiles } = useSTTProfileStore()
   const {
     isPanelOpen,
     isMinimized,
+    confirmDiscardOpen,
     phase,
     elapsedSeconds,
     taskId,
@@ -179,6 +180,8 @@ export function MeetingRecorderDock({ autoStart = false }: MeetingRecorderDockPr
     notification,
     openPanel,
     closePanel,
+    requestClose,
+    cancelCloseRequest,
     discardSession,
     minimizePanel,
     restorePanel,
@@ -660,15 +663,37 @@ export function MeetingRecorderDock({ autoStart = false }: MeetingRecorderDockPr
   }
 
   const handleRequestClose = async () => {
-    // Audio is always persisted to IndexedDB + the notes library, so the
-    // user can recover it from "My Audios" later. No confirmation needed.
-    // Always reset the shared store to "panel closed" so the bottom-right
-    // mic launcher reappears in the main window.
+    if (hasRecoverableRecording || NATIVE_PROTECTED_PHASES.includes(phase)) {
+      requestClose()
+      return
+    }
+
     closePanel()
     if (isRecorderWindow) {
       await setRecorderActive(false)
-      // Destroy the recorder window — see handleViewNote for the macOS
-      // round-trip rationale.
+      await closeCurrentRecorderWindow()
+    }
+  }
+
+  const handleConfirmDiscard = async () => {
+    const persistedRecordingId = recordingIdRef.current || useMeetingRecorderStore.getState().recordingId
+    const draftNoteId = draftNoteIdRef.current
+
+    recorder.reset()
+    if (persistedRecordingId) {
+      await deleteRecordedAudio(persistedRecordingId)
+    }
+    if (draftNoteId) {
+      await deleteNote(draftNoteId)
+    }
+
+    recordingIdRef.current = null
+    draftNoteIdRef.current = null
+    draftTitleRef.current = ''
+    discardSession()
+
+    if (isRecorderWindow) {
+      await setRecorderActive(false)
       await closeCurrentRecorderWindow()
     }
   }
@@ -770,6 +795,35 @@ export function MeetingRecorderDock({ autoStart = false }: MeetingRecorderDockPr
           style={isRecorderWindow ? undefined : dockedStyle}
           onPointerDown={isRecorderWindow ? undefined : handlePanelPointerDown}
         >
+          {confirmDiscardOpen ? (
+            <div
+              role="dialog"
+              aria-label={recorderCopy.discardTitle}
+              className="flex min-h-[108px] items-center justify-between gap-3"
+            >
+              <div className="min-w-0 flex-1">
+                <div className="text-sm font-semibold text-[#111827]">{recorderCopy.discardTitle}</div>
+                <p className="mt-1 line-clamp-2 text-xs leading-4 text-[#6B7280]">{recorderCopy.discardBody}</p>
+              </div>
+              <div className="flex shrink-0 flex-col gap-2">
+                <button
+                  type="button"
+                  onClick={cancelCloseRequest}
+                  className="rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-[#111827] hover:bg-gray-50"
+                >
+                  {recorderCopy.keepRecording}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void handleConfirmDiscard()}
+                  className="rounded-lg bg-[#EF2B2D] px-3 py-1.5 text-xs font-medium text-white hover:bg-[#dc2626]"
+                >
+                  {recorderCopy.discard}
+                </button>
+              </div>
+            </div>
+          ) : (
+            <>
           <div
             data-testid="recorder-drag-handle"
             data-tauri-drag-region={isRecorderWindow ? 'true' : undefined}
@@ -882,6 +936,8 @@ export function MeetingRecorderDock({ autoStart = false }: MeetingRecorderDockPr
               <button type="button" onClick={() => void handleViewNote()} className="text-xs font-medium text-emerald-700 underline underline-offset-2" aria-label={recorderCopy.viewNote}>{recorderCopy.viewNote}</button>
             </div>
           ) : null}
+            </>
+          )}
         </section>
       ) : null}
 
