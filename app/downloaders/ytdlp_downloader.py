@@ -15,10 +15,15 @@ from urllib.parse import parse_qs, urlencode, urlparse
 
 import yt_dlp
 
+from app.config import settings
 from app.downloaders.base import Downloader
 from app.models.audio import AudioDownloadResult
 
 logger = logging.getLogger(__name__)
+
+
+class YoutubeAccessBlockedError(RuntimeError):
+    """Raised when YouTube challenges the server's anonymous download session."""
 
 
 class YtdlpDownloader(Downloader):
@@ -29,6 +34,29 @@ class YtdlpDownloader(Downloader):
         "tiktok": ["tiktok.com"],
         "xiaohongshu": ["xiaohongshu.com", "xhslink.com"],
     }
+
+    def __init__(
+        self,
+        *,
+        request_sleep_seconds: float | None = None,
+        download_sleep_seconds: float | None = None,
+        max_download_sleep_seconds: float | None = None,
+    ):
+        self.request_sleep_seconds = (
+            settings.ytdlp_request_sleep_seconds
+            if request_sleep_seconds is None
+            else request_sleep_seconds
+        )
+        self.download_sleep_seconds = (
+            settings.ytdlp_download_sleep_seconds
+            if download_sleep_seconds is None
+            else download_sleep_seconds
+        )
+        self.max_download_sleep_seconds = (
+            settings.ytdlp_max_download_sleep_seconds
+            if max_download_sleep_seconds is None
+            else max_download_sleep_seconds
+        )
 
     def detect_platform(self, video_url: str) -> str:
         parsed = urlparse(video_url)
@@ -79,27 +107,13 @@ class YtdlpDownloader(Downloader):
             raise
 
     def _download_video_with_ytdlp(self, *, video_url: str, output_dir: str, platform: str) -> str:
-        info = self._extract_info(video_url, platform)
-        video_id = info.get("id", "unknown")
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename_prefix = f"{timestamp}_{video_id}_video"
-
-        cached = next(
-            (
-                path for path in Path(output_dir).glob(f"{filename_prefix}.*")
-                if path.is_file() and path.suffix.lower() in {".mp4", ".mkv", ".webm", ".mov"}
-            ),
-            None,
-        )
-        if cached:
-            logger.info("[Video] cache hit path=%s", cached)
-            return str(cached)
 
         logger.info("[Video] downloading platform=%s url=%s", platform, video_url)
 
         ydl_opts = {
             "format": "bestvideo[ext=mp4]+bestaudio[ext=m4a]/bestvideo+bestaudio/best[ext=mp4]/best",
-            "outtmpl": os.path.join(output_dir, f"{filename_prefix}.%(ext)s"),
+            "outtmpl": os.path.join(output_dir, f"{timestamp}_%(id)s_video.%(ext)s"),
             "noplaylist": True,
             "quiet": True,
             "no_warnings": True,
@@ -109,13 +123,15 @@ class YtdlpDownloader(Downloader):
             "extractor_retries": 3,
             "socket_timeout": 20,
         }
+        self._apply_platform_options(ydl_opts, platform)
         if platform == "bilibili":
-            ydl_opts["http_headers"] = self._bilibili_headers()
             ydl_opts["format"] = "bestvideo+bestaudio/best"
 
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            ydl.extract_info(video_url, download=True)
+            info = self._extract_info_with_ydl(ydl, video_url, platform, download=True)
 
+        video_id = info.get("id", "unknown")
+        filename_prefix = f"{timestamp}_{video_id}_video"
         candidates = sorted(
             (
                 path for path in Path(output_dir).glob(f"{filename_prefix}.*")
@@ -183,22 +199,14 @@ class YtdlpDownloader(Downloader):
             "extractor_retries": 3,
             "socket_timeout": 20,
         }
-        if platform == "bilibili":
-            ydl_opts_info["http_headers"] = self._bilibili_headers()
+        self._apply_platform_options(ydl_opts_info, platform)
 
         with yt_dlp.YoutubeDL(ydl_opts_info) as ydl:
-            return ydl.extract_info(video_url, download=False)
+            return self._extract_info_with_ydl(ydl, video_url, platform, download=False)
 
     def _download_with_ytdlp(self, *, video_url: str, output_dir: str, platform: str) -> AudioDownloadResult:
-        info = self._extract_info(video_url, platform)
-        video_id = info.get("id", "unknown")
-        title = info.get("title", "Untitled")
-        duration = info.get("duration", 0)
-        cover_url = info.get("thumbnail")
-
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename_prefix = f"{timestamp}_{video_id}"
-        output_template = os.path.join(output_dir, f"{filename_prefix}.%(ext)s")
+        output_template = os.path.join(output_dir, f"{timestamp}_%(id)s.%(ext)s")
 
         ydl_opts = {
             "format": "bestaudio[ext=m4a]/bestaudio/best",
@@ -218,12 +226,16 @@ class YtdlpDownloader(Downloader):
             "extractor_retries": 3,
             "socket_timeout": 20,
         }
-        if platform == "bilibili":
-            ydl_opts["http_headers"] = self._bilibili_headers()
+        self._apply_platform_options(ydl_opts, platform)
 
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            ydl.extract_info(video_url, download=True)
+            info = self._extract_info_with_ydl(ydl, video_url, platform, download=True)
 
+        video_id = info.get("id", "unknown")
+        title = info.get("title", "Untitled")
+        duration = info.get("duration", 0)
+        cover_url = info.get("thumbnail")
+        filename_prefix = f"{timestamp}_{video_id}"
         audio_path = os.path.join(output_dir, f"{filename_prefix}.mp3")
         logger.info("[Download] completed title=%s duration=%ss path=%s", title, duration, audio_path)
 
@@ -236,6 +248,41 @@ class YtdlpDownloader(Downloader):
             cover_url=cover_url,
             raw_info=info,
         )
+
+    def _apply_platform_options(self, ydl_opts: dict, platform: str) -> None:
+        if platform == "youtube":
+            ydl_opts.update(
+                {
+                    "sleep_interval_requests": self.request_sleep_seconds,
+                    "sleep_interval": self.download_sleep_seconds,
+                    "max_sleep_interval": self.max_download_sleep_seconds,
+                }
+            )
+        if platform == "bilibili":
+            ydl_opts["http_headers"] = self._bilibili_headers()
+
+    @staticmethod
+    def _extract_info_with_ydl(
+        ydl: yt_dlp.YoutubeDL,
+        video_url: str,
+        platform: str,
+        *,
+        download: bool,
+    ) -> dict:
+        try:
+            return ydl.extract_info(video_url, download=download)
+        except yt_dlp.utils.DownloadError as exc:
+            message = str(exc)
+            if (
+                platform == "youtube"
+                and "Sign in to confirm" in message
+                and "not a bot" in message
+            ):
+                raise YoutubeAccessBlockedError(
+                    "YouTube 触发了机器人验证，当前服务器出口暂时无法下载该视频。"
+                    "请稍后重试，或切换可用的代理节点。"
+                ) from exc
+            raise
 
     def _download_bilibili_audio_with_curl(self, *, video_url: str, output_dir: str) -> AudioDownloadResult:
         info = self._extract_bilibili_info_with_curl(video_url)

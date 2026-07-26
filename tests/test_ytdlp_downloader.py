@@ -6,9 +6,14 @@ from pathlib import Path
 from subprocess import CompletedProcess
 from unittest.mock import patch
 
+import yt_dlp
+
 os.environ["DATABASE_URL"] = "sqlite:///:memory:"
 
-from app.downloaders.ytdlp_downloader import YtdlpDownloader
+from app.downloaders.ytdlp_downloader import (
+    YoutubeAccessBlockedError,
+    YtdlpDownloader,
+)
 
 
 class YtdlpDownloaderBilibiliFallbackTest(unittest.TestCase):
@@ -202,6 +207,119 @@ class YtdlpDownloaderBilibiliFallbackTest(unittest.TestCase):
             self.assertTrue(Path(video_path).exists())
 
         self.assertTrue(video_path.endswith(".mp4"))
+
+
+class FakeYoutubeDL:
+    instances: list["FakeYoutubeDL"] = []
+    error: Exception | None = None
+
+    def __init__(self, options):
+        self.options = options
+        self.extract_calls: list[tuple[str, bool]] = []
+        self.__class__.instances.append(self)
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc, traceback):
+        return False
+
+    def extract_info(self, video_url: str, download: bool):
+        self.extract_calls.append((video_url, download))
+        if self.__class__.error:
+            raise self.__class__.error
+
+        info = {
+            "id": "video-123",
+            "title": "Demo video",
+            "duration": 42,
+            "thumbnail": "https://example.com/cover.jpg",
+        }
+        if download:
+            output_template = self.options["outtmpl"]
+            output_path = Path(
+                output_template
+                .replace("%(id)s", info["id"])
+                .replace("%(ext)s", "mp4")
+            )
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+            if self.options.get("postprocessors"):
+                output_path = output_path.with_suffix(".mp3")
+            output_path.write_bytes(b"media")
+        return info
+
+
+class YtdlpDownloaderYoutubeStabilityTest(unittest.TestCase):
+    def setUp(self):
+        FakeYoutubeDL.instances = []
+        FakeYoutubeDL.error = None
+
+    @patch("app.downloaders.ytdlp_downloader.yt_dlp.YoutubeDL", FakeYoutubeDL)
+    def test_download_extracts_once_and_applies_request_pacing(self):
+        downloader = YtdlpDownloader(
+            request_sleep_seconds=1.5,
+            download_sleep_seconds=3.0,
+            max_download_sleep_seconds=6.0,
+        )
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            result = downloader.download(
+                "https://www.youtube.com/watch?v=video-123",
+                temp_dir,
+            )
+
+        self.assertEqual(len(FakeYoutubeDL.instances), 1)
+        instance = FakeYoutubeDL.instances[0]
+        self.assertEqual(
+            instance.extract_calls,
+            [("https://www.youtube.com/watch?v=video-123", True)],
+        )
+        self.assertEqual(instance.options["sleep_interval_requests"], 1.5)
+        self.assertEqual(instance.options["sleep_interval"], 3.0)
+        self.assertEqual(instance.options["max_sleep_interval"], 6.0)
+        self.assertEqual(result.title, "Demo video")
+        self.assertEqual(result.video_id, "video-123")
+
+    @patch("app.downloaders.ytdlp_downloader.yt_dlp.YoutubeDL", FakeYoutubeDL)
+    def test_download_video_extracts_once(self):
+        downloader = YtdlpDownloader(
+            request_sleep_seconds=0,
+            download_sleep_seconds=0,
+            max_download_sleep_seconds=0,
+        )
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            video_path = downloader.download_video(
+                "https://www.youtube.com/watch?v=video-123",
+                temp_dir,
+            )
+            self.assertTrue(Path(video_path).exists())
+
+        self.assertEqual(len(FakeYoutubeDL.instances), 1)
+        self.assertEqual(
+            FakeYoutubeDL.instances[0].extract_calls,
+            [("https://www.youtube.com/watch?v=video-123", True)],
+        )
+
+    @patch("app.downloaders.ytdlp_downloader.yt_dlp.YoutubeDL", FakeYoutubeDL)
+    def test_youtube_bot_challenge_is_translated_to_safe_error(self):
+        FakeYoutubeDL.error = yt_dlp.utils.DownloadError(
+            "Sign in to confirm you’re not a bot. Use --cookies for authentication."
+        )
+        downloader = YtdlpDownloader()
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with self.assertRaises(YoutubeAccessBlockedError) as context:
+                downloader.download(
+                    "https://www.youtube.com/watch?v=video-123",
+                    temp_dir,
+                )
+
+        message = str(context.exception)
+        self.assertIn("YouTube", message)
+        self.assertIn("机器人验证", message)
+        self.assertIn("稍后重试", message)
+        self.assertNotIn("cookies", message.lower())
 
 
 if __name__ == "__main__":

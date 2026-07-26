@@ -59,6 +59,9 @@ class Settings:
     summary_chunk_max_chars: int = int(os.getenv("SUMMARY_CHUNK_MAX_CHARS", "12000"))
     summary_chunk_max_segments: int = int(os.getenv("SUMMARY_CHUNK_MAX_SEGMENTS", "120"))
     summary_chunk_overlap_segments: int = int(os.getenv("SUMMARY_CHUNK_OVERLAP_SEGMENTS", "5"))
+    ytdlp_request_sleep_seconds: float = float(os.getenv("YTDLP_REQUEST_SLEEP_SECONDS", "1"))
+    ytdlp_download_sleep_seconds: float = float(os.getenv("YTDLP_DOWNLOAD_SLEEP_SECONDS", "3"))
+    ytdlp_max_download_sleep_seconds: float = float(os.getenv("YTDLP_MAX_DOWNLOAD_SLEEP_SECONDS", "6"))
 
     data_dir: Path = BASE_DIR / os.getenv("DATA_DIR", "data")
     output_dir: Path = BASE_DIR / os.getenv("OUTPUT_DIR", "output")
