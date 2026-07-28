@@ -203,7 +203,17 @@ def _build_transcript_segments(segment_values: list[object]) -> list[TranscriptS
         end = _coerce_float(segment_value.get("end"), start)
         if end < start:
             end = start
-        segments.append(TranscriptSegment(start=start, end=end, text=text))
+        segments.append(
+            TranscriptSegment(
+                start=start,
+                end=end,
+                text=text,
+                raw_text=_coerce_string(segment_value.get("raw_text"), "") or None,
+                cleaned_text=_coerce_string(segment_value.get("cleaned_text"), "") or None,
+                speaker_id=_coerce_string(segment_value.get("speaker_id"), "") or None,
+                speaker_label=_coerce_string(segment_value.get("speaker_label"), "") or None,
+            )
+        )
     return segments
 
 
@@ -212,9 +222,11 @@ def _build_transcript_from_json(raw_text: str, filename: str | None) -> Transcri
     language: str | None = None
     segments: list[TranscriptSegment] = []
     full_text = ""
+    metadata: dict = {}
 
     if isinstance(data, dict):
         language = _coerce_string(data.get("language"), "") or None
+        metadata = data.get("metadata") if isinstance(data.get("metadata"), dict) else {}
         segment_values = data.get("segments")
         if isinstance(segment_values, list):
             segments = _build_transcript_segments(segment_values)
@@ -235,7 +247,7 @@ def _build_transcript_from_json(raw_text: str, filename: str | None) -> Transcri
     if not full_text and not segments:
         raise ValueError("JSON transcript is empty.")
 
-    return TranscriptResult(language=language, full_text=full_text, segments=segments)
+    return TranscriptResult(language=language, full_text=full_text, segments=segments, metadata=metadata)
 
 
 def _build_transcript_from_text(raw_text: str) -> TranscriptResult:
@@ -505,22 +517,24 @@ async def generate_from_upload(
             )
         else:
             _ensure_media_extension(normalized_source_type, file.filename)
+            task_dir = _note_service.artifact_service.create_task_dir(task_id)
+            media_dir = task_dir / "media"
+            media_dir.mkdir(parents=True, exist_ok=True)
+            suffix = Path(_sanitize_filename(file.filename)).suffix.lower() or ".webm"
+            upload_path = media_dir / f"source_{normalized_source_type}{suffix}"
+            upload_path.write_bytes(file_bytes)
+            _note_service.artifact_service.record_source_media(
+                task_dir,
+                upload_path,
+                media_kind=normalized_source_type,
+            )
             if normalized_source_type == "audio":
-                task_dir = _note_service.artifact_service.create_task_dir(task_id)
-                media_dir = task_dir / "media"
-                media_dir.mkdir(parents=True, exist_ok=True)
-                suffix = Path(_sanitize_filename(file.filename)).suffix.lower() or ".webm"
-                upload_path = media_dir / f"source_audio{suffix}"
-                upload_path.write_bytes(file_bytes)
                 # The original browser recording can have a malformed webm
                 # header (notably from Tauri's WKWebView). Normalize it to a
                 # canonical 16kHz mono WAV so faster-whisper can decode it.
                 # The original file is kept untouched on disk for download.
                 upload_path = normalize_audio_for_transcription(upload_path)
-                _note_service.artifact_service.update_status(task_dir, "uploaded", "Audio uploaded")
-            else:
-                upload_path = _build_upload_path(task_id, normalized_source_type, file.filename)
-                upload_path.write_bytes(file_bytes)
+            _note_service.artifact_service.update_status(task_dir, "uploaded", "Media uploaded")
             req = _build_note_request_fields(
                 file_path=str(upload_path),
                 title=title,
@@ -597,8 +611,17 @@ async def generate_from_upload_sync(
                 user_id=user.user_id if user else None,
             )
         else:
-            upload_path = _build_upload_path(task_id, normalized_source_type, file.filename)
+            task_dir = _note_service.artifact_service.create_task_dir(task_id)
+            media_dir = task_dir / "media"
+            media_dir.mkdir(parents=True, exist_ok=True)
+            suffix = Path(_sanitize_filename(file.filename)).suffix.lower() or ".webm"
+            upload_path = media_dir / f"source_{normalized_source_type}{suffix}"
             upload_path.write_bytes(file_bytes)
+            _note_service.artifact_service.record_source_media(
+                task_dir,
+                upload_path,
+                media_kind=normalized_source_type,
+            )
             if normalized_source_type == "audio":
                 upload_path = normalize_audio_for_transcription(upload_path)
             req = _build_note_request_fields(

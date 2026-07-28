@@ -5,7 +5,15 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import FileResponse
 
 from app.models.auth import AuthenticatedUser
-from app.models.note_library import NoteCreateRequest, NoteRecordResponse, NoteScope, NoteUpdateRequest
+from app.models.note_library import (
+    NoteCreateRequest,
+    NoteRecordResponse,
+    NoteScope,
+    NoteUpdateRequest,
+    SpeakerAliasesResponse,
+    SpeakerAliasesUpdateRequest,
+    TranscriptEvidenceResponse,
+)
 from app.services.auth_service import get_current_user
 from app.services.task_artifact_service import TaskArtifactService
 from app.services.note_repository import NoteRepository
@@ -42,6 +50,13 @@ def get_note_media(note_id: str, user: AuthenticatedUser = Depends(get_current_u
     if not task_dir:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Media not found")
 
+    declared_source = _artifact_service.resolve_source_media(task_dir)
+    if declared_source:
+        media_type = mimetypes.guess_type(declared_source.name)[0] or "application/octet-stream"
+        if declared_source.suffix.lower() == ".webm" and note.source_type in {"audio", "meeting_recording"}:
+            media_type = "audio/webm"
+        return FileResponse(path=declared_source, media_type=media_type, filename=declared_source.name)
+
     media_dir = task_dir / "media"
     media_candidates = [
         path for path in sorted(media_dir.glob("*"))
@@ -63,6 +78,58 @@ def get_note_media(note_id: str, user: AuthenticatedUser = Depends(get_current_u
 
     media_type = mimetypes.guess_type(media_path.name)[0] or "application/octet-stream"
     return FileResponse(path=media_path, media_type=media_type, filename=media_path.name)
+
+
+@router.get("/notes/{note_id}/transcript", response_model=TranscriptEvidenceResponse)
+def get_note_transcript(note_id: str, user: AuthenticatedUser = Depends(get_current_user)):
+    note = _repository.get_note(user.user_id, note_id)
+    if not note:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Note not found")
+
+    aliases = _repository.get_speaker_aliases(user.user_id, note_id) or {}
+    if not note.task_id:
+        return {"language": None, "full_text": "", "segments": [], "aliases": aliases, "metadata": {}}
+    task_dir = _artifact_service.find_task_dir(note.task_id)
+    transcript = _artifact_service.load_transcript(task_dir) if task_dir else None
+    if not transcript:
+        return {"language": None, "full_text": "", "segments": [], "aliases": aliases, "metadata": {}}
+
+    segments = []
+    for segment in transcript.segments:
+        speaker_label = aliases.get(segment.speaker_id, segment.speaker_label)
+        segments.append(
+            {
+                "start": segment.start,
+                "end": segment.end,
+                "text": segment.text,
+                "raw_text": segment.raw_text,
+                "cleaned_text": segment.cleaned_text,
+                "speaker_id": segment.speaker_id,
+                "speaker_label": speaker_label,
+            }
+        )
+    return {
+        "language": transcript.language,
+        "full_text": transcript.full_text,
+        "segments": segments,
+        "aliases": aliases,
+        "metadata": transcript.metadata,
+    }
+
+
+@router.patch("/notes/{note_id}/speakers", response_model=SpeakerAliasesResponse)
+def update_note_speakers(
+    note_id: str,
+    payload: SpeakerAliasesUpdateRequest,
+    user: AuthenticatedUser = Depends(get_current_user),
+):
+    try:
+        aliases = _repository.update_speaker_aliases(user.user_id, note_id, payload.aliases)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    if aliases is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Note not found")
+    return {"aliases": aliases}
 
 
 @router.post("/notes", response_model=NoteRecordResponse, status_code=status.HTTP_201_CREATED)

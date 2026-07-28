@@ -88,6 +88,24 @@ describe('useAudioRecorder', () => {
     expect(result.current.status).toBe('stopped')
   })
 
+  it('returns the exact MediaRecorder container instead of re-encoding it in the browser', async () => {
+    const { result } = renderHook(() => useAudioRecorder())
+
+    await act(async () => {
+      await result.current.start()
+    })
+    const blob = await act(async () => result.current.stop())
+
+    expect(blob.type).toContain('audio/webm')
+    const payload = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = () => resolve(String(reader.result))
+      reader.onerror = () => reject(reader.error)
+      reader.readAsText(blob)
+    })
+    expect(payload).toBe('request-datastop-data')
+  })
+
   it('finalizes the recording if the WebView never fires onstop', async () => {
     vi.useFakeTimers()
     recorderBehavior = 'missing-stop-event'

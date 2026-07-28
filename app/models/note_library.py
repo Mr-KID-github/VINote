@@ -44,6 +44,32 @@ class NoteUpdateRequest(BaseModel):
     status: str | None = None
 
 
+class SpeakerAliasesUpdateRequest(BaseModel):
+    aliases: dict[str, str] = Field(default_factory=dict)
+
+
+class SpeakerAliasesResponse(BaseModel):
+    aliases: dict[str, str]
+
+
+class TranscriptEvidenceSegment(BaseModel):
+    start: float
+    end: float
+    text: str
+    raw_text: str | None = None
+    cleaned_text: str | None = None
+    speaker_id: str | None = None
+    speaker_label: str | None = None
+
+
+class TranscriptEvidenceResponse(BaseModel):
+    language: str | None = None
+    full_text: str = ""
+    segments: list[TranscriptEvidenceSegment] = Field(default_factory=list)
+    aliases: dict[str, str] = Field(default_factory=dict)
+    metadata: dict[str, object] = Field(default_factory=dict)
+
+
 class NoteShareRecord(BaseModel):
     note_id: str
     title: str

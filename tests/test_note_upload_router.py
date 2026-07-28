@@ -1,5 +1,6 @@
 import tempfile
 import unittest
+import json
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -45,12 +46,45 @@ class GenerateFromUploadRouterTest(unittest.TestCase):
         task_id = payload["task_id"]
         audio_path = self.output_dir / task_id / "media" / "source_audio.webm"
         self.assertEqual(audio_path.read_bytes(), b"audio-bytes")
+        manifest_path = self.output_dir / task_id / "source_media.json"
+        self.assertTrue(manifest_path.is_file())
+        self.assertEqual(
+            self.artifact_service.resolve_source_media(self.output_dir / task_id),
+            audio_path.resolve(),
+        )
         self.assertEqual(self.artifact_service.get_status(task_id)["status"], "uploaded")
         run_task.assert_called_once()
         _, kwargs = run_task.call_args
         self.assertEqual(kwargs["task_id"], task_id)
         self.assertEqual(kwargs["req"].file_path, str(audio_path))
         self.assertEqual(kwargs["req"].title, "Meeting recording")
+
+    def test_json_transcript_keeps_speaker_text_variants_and_provenance(self):
+        transcript = note._build_transcript_from_json(
+            json.dumps(
+                {
+                    "language": "zh",
+                    "full_text": "清洗文本",
+                    "metadata": {"asr_model": "external-asr", "diarization": "external-speaker"},
+                    "segments": [
+                        {
+                            "start": 1.5,
+                            "end": 4.0,
+                            "text": "清洗文本",
+                            "raw_text": "原始 文本",
+                            "cleaned_text": "清洗文本",
+                            "speaker_id": "speaker_01",
+                            "speaker_label": "Speaker 1",
+                        }
+                    ],
+                }
+            ),
+            "meeting.json",
+        )
+
+        self.assertEqual(transcript.metadata["asr_model"], "external-asr")
+        self.assertEqual(transcript.segments[0].speaker_id, "speaker_01")
+        self.assertEqual(transcript.segments[0].raw_text, "原始 文本")
 
 
 if __name__ == "__main__":

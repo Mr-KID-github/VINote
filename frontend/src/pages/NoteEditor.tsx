@@ -1,16 +1,24 @@
 import { useEffect, useRef, useState } from 'react'
-import { ArrowLeft, Download, Edit3, Eye, MoreHorizontal, Save, Share2 } from 'lucide-react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { ArrowLeft, Download, Edit3, Eye, FileText, MessageSquare, MoreHorizontal, Save, Share2 } from 'lucide-react'
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { MarkdownContent } from '../components/Markdown/MarkdownContent'
 import { KeyMomentsRail } from '../components/Notes/KeyMomentsRail'
 import { VideoReferencePanel } from '../components/Notes/VideoReferencePanel'
 import { RecordingRetryBar } from '../components/Notes/RecordingRetryBar'
+import { TranscriptEvidencePanel } from '../components/Notes/TranscriptEvidencePanel'
+import { apiJson } from '../lib/api'
 import { findActiveKeyMoment, type KeyMoment } from '../lib/markdownKeyMoments'
+import {
+  renderTranscriptMarkdown,
+  type TranscriptEvidence,
+  type TranscriptTextMode,
+} from '../lib/noteTranscript'
 import { useI18n } from '../lib/i18n'
 import { resolveContentUrl } from '../lib/videoLinks'
 import { type NoteRecord, type NoteShareRecord, useNoteLibraryStore } from '../stores/noteLibraryStore'
 
 type WorkspaceMode = 'write' | 'split' | 'preview'
+type NoteView = 'summary' | 'transcript'
 
 const HEADING_RE = /^(#{1,6})\s+(.*)$/
 const TIMESTAMP_LINK_RE = /\[(\d{1,2}:\d{2})(?:-\d{1,2}:\d{2})?\]\(([^)]+)\)/
@@ -150,16 +158,20 @@ function slugifyHeading(text: string) {
 export function NoteEditor() {
   const { id } = useParams()
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
   const { copy, locale } = useI18n()
   const { loadNoteById, updateNote, createShareLink, getShareLink, disableShareLink } = useNoteLibraryStore()
   const workspaceRef = useRef<HTMLDivElement | null>(null)
   const previewRef = useRef<HTMLDivElement | null>(null)
+  const audioRef = useRef<HTMLAudioElement | null>(null)
+  const videoRef = useRef<HTMLVideoElement | null>(null)
   const [workspaceMode, setWorkspaceMode] = useState<WorkspaceMode>('split')
   const [editorWidth, setEditorWidth] = useState(40)
   const [localTitle, setLocalTitle] = useState('')
   const [content, setContent] = useState('')
   const [videoUrl, setVideoUrl] = useState('')
   const [taskId, setTaskId] = useState('')
+  const [sourceType, setSourceType] = useState('')
   const [noteScope, setNoteScope] = useState<'personal' | 'team'>('personal')
   const [noteWorkspaceName, setNoteWorkspaceName] = useState('')
   const [loading, setLoading] = useState(true)
@@ -174,9 +186,15 @@ export function NoteEditor() {
   const [currentTimestamp, setCurrentTimestamp] = useState(0)
   const [jumpRequestId, setJumpRequestId] = useState(0)
   const [keyMoments, setKeyMoments] = useState<KeyMoment[]>([])
+  const [transcriptEvidence, setTranscriptEvidence] = useState<TranscriptEvidence | null>(null)
+  const [transcriptLoading, setTranscriptLoading] = useState(false)
+  const [transcriptTextMode, setTranscriptTextMode] = useState<TranscriptTextMode>('clean')
 
+  const noteView: NoteView = searchParams.get('view') === 'transcript' ? 'transcript' : 'summary'
   const activeMoment = findActiveKeyMoment(keyMoments, currentTimestamp)
   const localMediaUrl = id && taskId ? `/api/notes/${id}/media` : undefined
+  const isAudioNote = Boolean(localMediaUrl) && ['audio', 'meeting_recording'].includes(sourceType)
+  const isVideoNote = Boolean(localMediaUrl) && sourceType === 'video'
   const splitLabel = locale.startsWith('zh') ? '对照' : 'Split'
   const workspaceBadge = noteScope === 'team'
     ? noteWorkspaceName || (locale.startsWith('zh') ? '团队笔记' : 'Team note')
@@ -226,6 +244,7 @@ export function NoteEditor() {
       setContent(note.content)
       setVideoUrl(note.videoUrl || '')
       setTaskId(note.taskId || '')
+      setSourceType(note.sourceType || '')
       setNoteScope(note.scope)
       setNoteWorkspaceName(note.teamName || '')
       setCurrentNote(note)
@@ -250,6 +269,31 @@ export function NoteEditor() {
   useEffect(() => {
     setKeyMoments(deriveKeyMoments(content))
   }, [content])
+
+  useEffect(() => {
+    let active = true
+
+    async function loadTranscript() {
+      if (!id || !taskId) {
+        setTranscriptEvidence(null)
+        return
+      }
+      setTranscriptLoading(true)
+      try {
+        const evidence = await apiJson<TranscriptEvidence>(`/api/notes/${id}/transcript`)
+        if (active) setTranscriptEvidence(evidence)
+      } catch {
+        if (active) setTranscriptEvidence(null)
+      } finally {
+        if (active) setTranscriptLoading(false)
+      }
+    }
+
+    void loadTranscript()
+    return () => {
+      active = false
+    }
+  }, [id, taskId])
 
   const handleSave = async () => {
     if (!id) {
@@ -349,11 +393,16 @@ export function NoteEditor() {
   }
 
   const handleExport = () => {
-    const blob = new Blob([content], { type: 'text/markdown' })
+    const baseTitle = localTitle.trim() || 'note'
+    const exportingTranscript = noteView === 'transcript' && Boolean(transcriptEvidence?.segments.length)
+    const payload = exportingTranscript && transcriptEvidence
+      ? renderTranscriptMarkdown(transcriptEvidence, transcriptTextMode)
+      : content
+    const blob = new Blob([payload], { type: 'text/markdown;charset=utf-8' })
     const url = URL.createObjectURL(blob)
     const anchor = document.createElement('a')
     anchor.href = url
-    anchor.download = `${localTitle || 'note'}.md`
+    anchor.download = exportingTranscript ? `${baseTitle}.transcript.md` : `${baseTitle}.md`
     anchor.click()
     URL.revokeObjectURL(url)
   }
@@ -368,6 +417,21 @@ export function NoteEditor() {
     setCurrentTimestamp(seconds)
     setJumpRequestId((value) => value + 1)
 
+    if (isAudioNote && audioRef.current) {
+      audioRef.current.currentTime = seconds
+      void audioRef.current.play().catch(() => {
+        // The seek remains valid when autoplay is blocked.
+      })
+      return
+    }
+    if (isVideoNote && videoRef.current) {
+      videoRef.current.currentTime = seconds
+      void videoRef.current.play().catch(() => {
+        // The seek remains valid when autoplay is blocked.
+      })
+      return
+    }
+
     if (workspaceMode === 'write') {
       setWorkspaceMode('preview')
     }
@@ -381,6 +445,22 @@ export function NoteEditor() {
 
   const handleSelectMoment = (moment: KeyMoment) => {
     jumpToTimestamp(moment.seconds, moment.anchorId)
+  }
+
+  const setNoteView = (view: NoteView) => {
+    const next = new URLSearchParams(searchParams)
+    next.set('view', view)
+    setSearchParams(next, { replace: true })
+  }
+
+  const saveSpeakerAlias = async (speakerId: string, label: string) => {
+    if (!id) return
+    const result = await apiJson<{ aliases: Record<string, string> }>(`/api/notes/${id}/speakers`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ aliases: { [speakerId]: label } }),
+    })
+    setTranscriptEvidence((current) => current ? { ...current, aliases: result.aliases } : current)
   }
 
   const handleEditorResizeStart = (event: React.MouseEvent<HTMLButtonElement>) => {
@@ -469,7 +549,7 @@ export function NoteEditor() {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <div className="flex rounded-xl bg-white/80 p-1 shadow-sm dark:bg-[#1a1a1a]">
+          <div className={`flex rounded-xl bg-white/80 p-1 shadow-sm dark:bg-[#1a1a1a] ${noteView === 'transcript' ? 'invisible' : ''}`}>
             <button
               type="button"
               onClick={() => setWorkspaceMode('write')}
@@ -502,6 +582,29 @@ export function NoteEditor() {
                 <Eye className="h-4 w-4" />
                 {copy.common.preview}
               </span>
+            </button>
+          </div>
+
+          <div className="flex w-[220px] rounded-xl bg-white/80 p-1 shadow-sm dark:bg-[#1a1a1a]" data-testid="note-view-switcher">
+            <button
+              type="button"
+              onClick={() => setNoteView('summary')}
+              className={`flex flex-1 items-center justify-center gap-1 rounded-lg px-3 py-1.5 text-sm ${
+                noteView === 'summary' ? 'bg-primary-light text-white dark:bg-primary-dark' : 'text-gray-600 dark:text-gray-300'
+              }`}
+            >
+              <FileText className="h-4 w-4" />
+              Summary
+            </button>
+            <button
+              type="button"
+              onClick={() => setNoteView('transcript')}
+              className={`flex flex-1 items-center justify-center gap-1 rounded-lg px-3 py-1.5 text-sm ${
+                noteView === 'transcript' ? 'bg-primary-light text-white dark:bg-primary-dark' : 'text-gray-600 dark:text-gray-300'
+              }`}
+            >
+              <MessageSquare className="h-4 w-4" />
+              Transcript
             </button>
           </div>
 
@@ -596,7 +699,7 @@ export function NoteEditor() {
         </div>
       ) : null}
 
-      {keyMoments.length > 0 ? (
+      {noteView === 'summary' && keyMoments.length > 0 ? (
         <div className="border-b border-gray-200 bg-white/70 px-4 py-3 xl:hidden dark:border-gray-800 dark:bg-[#151515]">
           <div className="stealth-scroll flex gap-3 overflow-x-auto">
             {keyMoments.map((moment) => (
@@ -620,6 +723,7 @@ export function NoteEditor() {
         </div>
       ) : null}
 
+      {noteView === 'summary' ? (
       <div className="flex min-h-0 flex-1 overflow-hidden">
         <KeyMomentsRail
           moments={keyMoments}
@@ -686,11 +790,11 @@ export function NoteEditor() {
                   />
                 </div>
 
-                {videoUrl ? (
+                {videoUrl && !isVideoNote ? (
                   <div className="hidden w-[320px] shrink-0 border-l border-gray-200 bg-white/80 p-4 xl:flex dark:border-gray-800 dark:bg-[#141414]">
                     <VideoReferencePanel
                       noteId={id}
-                      taskId={taskId || undefined}
+                      taskId={undefined}
                       videoUrl={videoUrl}
                       currentTimestamp={currentTimestamp}
                       jumpRequestId={jumpRequestId}
@@ -705,6 +809,51 @@ export function NoteEditor() {
           ) : null}
         </div>
       </div>
+      ) : (
+        <TranscriptEvidencePanel
+          evidence={transcriptEvidence}
+          loading={transcriptLoading}
+          currentTimestamp={currentTimestamp}
+          textMode={transcriptTextMode}
+          onTextModeChange={setTranscriptTextMode}
+          onSeek={jumpToTimestamp}
+          onSaveAlias={saveSpeakerAlias}
+        />
+      )}
+
+      {isAudioNote && localMediaUrl ? (
+        <div className="border-t border-gray-200 bg-white px-4 py-3 dark:border-gray-800 dark:bg-[#111111]">
+          <div className="mx-auto flex max-w-6xl items-center gap-3">
+            <span className="shrink-0 text-sm font-medium">Audio</span>
+            <audio
+              ref={audioRef}
+              data-testid="source-audio"
+              controls
+              preload="metadata"
+              src={resolveContentUrl(localMediaUrl)}
+              className="h-10 min-w-0 flex-1"
+              onTimeUpdate={(event) => setCurrentTimestamp(event.currentTarget.currentTime)}
+            />
+          </div>
+        </div>
+      ) : null}
+
+      {isVideoNote && localMediaUrl ? (
+        <div className="border-t border-gray-200 bg-white px-4 py-3 dark:border-gray-800 dark:bg-[#111111]">
+          <div className="mx-auto flex max-w-6xl items-center gap-3">
+            <span className="shrink-0 text-sm font-medium">Video</span>
+            <video
+              ref={videoRef}
+              data-testid="source-video"
+              controls
+              preload="metadata"
+              src={resolveContentUrl(localMediaUrl)}
+              className="h-28 min-w-0 flex-1 bg-black object-contain"
+              onTimeUpdate={(event) => setCurrentTimestamp(event.currentTarget.currentTime)}
+            />
+          </div>
+        </div>
+      ) : null}
     </div>
   )
 }
