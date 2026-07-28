@@ -33,6 +33,7 @@ def init_db():
     Base.metadata.create_all(bind=engine)
     _ensure_note_share_columns()
     _ensure_note_workspace_columns()
+    _ensure_note_evidence_columns()
 
 
 def _ensure_note_share_columns():
@@ -80,6 +81,17 @@ def _ensure_note_workspace_columns():
         connection.exec_driver_sql(
             "CREATE INDEX IF NOT EXISTS ix_notes_scope_created_at ON notes (scope, created_at)"
         )
+
+
+def _ensure_note_evidence_columns():
+    inspector = inspect(engine)
+    if "notes" not in inspector.get_table_names():
+        return
+
+    columns = {column["name"] for column in inspector.get_columns("notes")}
+    if "structured_json" not in columns:
+        with engine.begin() as connection:
+            connection.exec_driver_sql("ALTER TABLE notes ADD COLUMN structured_json TEXT")
 
 
 def get_db():

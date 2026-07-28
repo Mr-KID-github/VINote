@@ -1,6 +1,7 @@
 """
 Task artifact storage for note generation jobs.
 """
+import hashlib
 import json
 import shutil
 from dataclasses import asdict
@@ -73,6 +74,7 @@ class TaskArtifactService:
             language=data.get("language"),
             full_text=data.get("full_text", ""),
             segments=segments,
+            metadata=data.get("metadata") if isinstance(data.get("metadata"), dict) else {},
         )
 
     def save_transcript(self, task_dir: Path, transcript: TranscriptResult) -> None:
@@ -92,6 +94,70 @@ class TaskArtifactService:
         if source != target_path.resolve():
             shutil.copy2(source, target_path)
         return target_path
+
+    def stage_source_media(self, task_dir: Path, source_path: str, *, media_kind: str) -> Path:
+        target = self.stage_media_file(task_dir, source_path, target_stem=f"source_{media_kind}")
+        self.record_source_media(task_dir, target, media_kind=media_kind)
+        return target
+
+    def record_source_media(self, task_dir: Path, media_path: Path, *, media_kind: str) -> None:
+        task_root = task_dir.resolve()
+        if media_path.is_symlink():
+            raise ValueError("Source media must be a regular file")
+        source = media_path.resolve()
+        try:
+            relative_path = source.relative_to(task_root)
+        except ValueError as exc:
+            raise ValueError("Source media must be stored inside the task directory") from exc
+        if not source.is_file():
+            raise ValueError("Source media must be a regular file")
+        self.write_json(
+            task_dir / "source_media.json",
+            {
+                "relative_path": relative_path.as_posix(),
+                "media_kind": media_kind,
+                "size_bytes": source.stat().st_size,
+                "sha256": self._sha256(source),
+            },
+        )
+
+    def resolve_source_media(self, task_dir: Path) -> Optional[Path]:
+        manifest_path = task_dir / "source_media.json"
+        if not manifest_path.is_file():
+            return None
+        try:
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            relative_path = Path(str(manifest["relative_path"]))
+            expected_size = int(manifest["size_bytes"])
+            expected_sha256 = str(manifest["sha256"])
+        except (KeyError, TypeError, ValueError, json.JSONDecodeError):
+            return None
+        if len(expected_sha256) != 64:
+            return None
+        if relative_path.is_absolute() or ".." in relative_path.parts:
+            return None
+        task_root = task_dir.resolve()
+        unresolved = task_root / relative_path
+        if unresolved.is_symlink():
+            return None
+        candidate = unresolved.resolve()
+        try:
+            candidate.relative_to(task_root)
+        except ValueError:
+            return None
+        if not candidate.is_file():
+            return None
+        if candidate.stat().st_size != expected_size:
+            return None
+        return candidate
+
+    @staticmethod
+    def _sha256(path: Path) -> str:
+        digest = hashlib.sha256()
+        with path.open("rb") as handle:
+            for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+                digest.update(chunk)
+        return digest.hexdigest()
 
     def update_status(self, task_dir: Path, status: str, message: str = "") -> None:
         status_file = task_dir / "status.json"

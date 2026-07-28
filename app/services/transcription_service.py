@@ -255,6 +255,10 @@ class TranscriptionService:
                     start=round(chunk.chunk_start + segment.start, 2),
                     end=round(chunk.chunk_start + segment.end, 2),
                     text=segment.text.strip(),
+                    raw_text=segment.raw_text,
+                    cleaned_text=segment.cleaned_text,
+                    speaker_id=segment.speaker_id,
+                    speaker_label=segment.speaker_label,
                 )
                 midpoint = self._segment_midpoint(absolute_segment)
                 is_last_chunk = chunk.index == chunk.total
@@ -301,7 +305,13 @@ class TranscriptionService:
 
         full_text = " ".join(segment.text for segment in deduped_segments).strip()
         language = Counter(languages).most_common(1)[0][0] if languages else None
-        return TranscriptResult(language=language, full_text=full_text, segments=deduped_segments)
+        metadata = next((result.metadata for _, result in chunk_results if result.metadata), {})
+        return TranscriptResult(
+            language=language,
+            full_text=full_text,
+            segments=deduped_segments,
+            metadata=metadata,
+        )
 
     def _transcribe_in_chunks(
         self,

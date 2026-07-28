@@ -1,3 +1,5 @@
+import json
+import re
 import secrets
 from datetime import datetime, timezone
 
@@ -15,6 +17,8 @@ from app.models.note_library import (
 
 
 class NoteRepository:
+    _SPEAKER_ID_RE = re.compile(r"^[A-Za-z0-9_.:-]{1,64}$")
+
     @staticmethod
     def _to_response(record: NoteDB, *, team_name: str | None = None) -> NoteRecordResponse:
         return NoteRecordResponse(
@@ -120,6 +124,65 @@ class NoteRepository:
                 record.status = payload.status
             db.flush()
             return self._to_response(record, team_name=self._get_team_name(db, record.team_id))
+
+    def get_speaker_aliases(self, user_id: str, note_id: str) -> dict[str, str] | None:
+        with session_scope() as db:
+            record = self._get_accessible_record(db, user_id=user_id, note_id=note_id)
+            if not record:
+                return None
+            return self._speaker_aliases(record.structured_json)
+
+    def update_speaker_aliases(self, user_id: str, note_id: str, aliases: dict[str, str]) -> dict[str, str] | None:
+        if len(aliases) > 32:
+            raise ValueError("Too many speaker aliases")
+        updates: dict[str, str] = {}
+        for raw_id, raw_label in aliases.items():
+            speaker_id = str(raw_id).strip()
+            if not self._SPEAKER_ID_RE.fullmatch(speaker_id):
+                raise ValueError("Invalid speaker ID")
+            label = " ".join(str(raw_label).split())
+            if len(label) > 80:
+                raise ValueError("Speaker label is too long")
+            updates[speaker_id] = label
+
+        with session_scope() as db:
+            record = self._get_accessible_record(db, user_id=user_id, note_id=note_id)
+            if not record:
+                return None
+            structured = self._structured_object(record.structured_json)
+            saved_aliases = self._speaker_aliases(record.structured_json)
+            for speaker_id, label in updates.items():
+                if label:
+                    saved_aliases[speaker_id] = label
+                else:
+                    saved_aliases.pop(speaker_id, None)
+            if len(saved_aliases) > 32:
+                raise ValueError("Too many speaker aliases")
+            structured["speakerAliases"] = saved_aliases
+            record.structured_json = json.dumps(structured, ensure_ascii=False, separators=(",", ":"))
+            db.flush()
+            return saved_aliases
+
+    @classmethod
+    def _speaker_aliases(cls, structured_json: str | None) -> dict[str, str]:
+        value = cls._structured_object(structured_json).get("speakerAliases")
+        if not isinstance(value, dict):
+            return {}
+        return {
+            str(speaker_id): str(label)
+            for speaker_id, label in value.items()
+            if cls._SPEAKER_ID_RE.fullmatch(str(speaker_id)) and isinstance(label, str) and label
+        }
+
+    @staticmethod
+    def _structured_object(structured_json: str | None) -> dict:
+        if not structured_json:
+            return {}
+        try:
+            value = json.loads(structured_json)
+        except (TypeError, ValueError):
+            return {}
+        return value if isinstance(value, dict) else {}
 
     def delete_note(self, user_id: str, note_id: str) -> bool:
         with session_scope() as db:

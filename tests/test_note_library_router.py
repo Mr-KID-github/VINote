@@ -14,6 +14,7 @@ from app.db_models import TeamDB, TeamMemberDB
 from app.models.auth import AuthenticatedUser
 from app.models.audio import AudioDownloadResult
 from app.models.note_library import NoteCreateRequest
+from app.models.transcript import TranscriptResult, TranscriptSegment
 from app.routers import note_library
 from app.services.auth_service import get_current_user
 from app.services.note_repository import NoteRepository
@@ -142,6 +143,117 @@ class NoteLibraryRouterTest(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.content, b"fake-video")
         self.assertEqual(response.headers["content-type"], "video/mp4")
+
+    def test_get_note_media_prefers_declared_original_source(self):
+        task_dir = self.artifact_service.create_task_dir("task-original")
+        original = Path(self.temp_dir.name) / "meeting.webm"
+        original.write_bytes(b"exact-original")
+        self.artifact_service.stage_source_media(task_dir, str(original), media_kind="audio")
+        normalized = task_dir / "media" / "source_audio.normalized.wav"
+        normalized.write_bytes(b"normalized-copy")
+        self.artifact_service.update_status(task_dir, "success", "ready")
+
+        with patch("app.services.note_repository.session_scope", self._session_scope), patch.object(
+            note_library,
+            "_artifact_service",
+            self.artifact_service,
+        ):
+            note = self.repository.create_note(
+                "user-1",
+                NoteCreateRequest(
+                    title="Meeting",
+                    content="body",
+                    source_type="meeting_recording",
+                    task_id="task-original",
+                ),
+            )
+            response = self.client.get(f"/api/notes/{note.id}/media")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.content, b"exact-original")
+        self.assertEqual(response.headers["content-type"], "audio/webm")
+
+    def test_transcript_evidence_uses_local_artifact_and_overlays_speaker_aliases(self):
+        task_dir = self.artifact_service.create_task_dir("task-transcript")
+        self.artifact_service.update_status(task_dir, "success", "ready")
+        self.artifact_service.save_transcript(
+            task_dir,
+            TranscriptResult(
+                language="zh",
+                full_text="原始内容",
+                metadata={"asr_model": "sensevoice-small", "alignment": "timestamped"},
+                segments=[
+                    TranscriptSegment(
+                        start=62.0,
+                        end=72.0,
+                        text="整理后的内容",
+                        raw_text="原始内容",
+                        cleaned_text="整理后的内容",
+                        speaker_id="speaker_01",
+                        speaker_label="Speaker 1",
+                    )
+                ],
+            ),
+        )
+
+        with patch("app.services.note_repository.session_scope", self._session_scope), patch.object(
+            note_library,
+            "_artifact_service",
+            self.artifact_service,
+        ):
+            note = self.repository.create_note(
+                "user-1",
+                NoteCreateRequest(title="Evidence", content="body", task_id="task-transcript"),
+            )
+            alias_response = self.client.patch(
+                f"/api/notes/{note.id}/speakers",
+                json={"aliases": {"speaker_01": "王老师"}},
+            )
+            response = self.client.get(f"/api/notes/{note.id}/transcript")
+
+        self.assertEqual(alias_response.status_code, 200)
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["language"], "zh")
+        self.assertEqual(payload["aliases"], {"speaker_01": "王老师"})
+        self.assertEqual(payload["metadata"]["asr_model"], "sensevoice-small")
+        self.assertEqual(payload["segments"][0]["speaker_label"], "王老师")
+        self.assertEqual(payload["segments"][0]["raw_text"], "原始内容")
+        self.assertEqual(payload["segments"][0]["cleaned_text"], "整理后的内容")
+
+    def test_transcript_evidence_returns_empty_shape_and_enforces_access(self):
+        with patch("app.services.note_repository.session_scope", self._session_scope), patch.object(
+            note_library,
+            "_artifact_service",
+            self.artifact_service,
+        ):
+            note = self.repository.create_note(
+                "user-1",
+                NoteCreateRequest(title="No transcript", content="body"),
+            )
+            empty_response = self.client.get(f"/api/notes/{note.id}/transcript")
+            self.app.dependency_overrides[get_current_user] = lambda: AuthenticatedUser(user_id="user-2")
+            denied_response = self.client.get(f"/api/notes/{note.id}/transcript")
+
+        self.assertEqual(empty_response.status_code, 200)
+        self.assertEqual(
+            empty_response.json(),
+            {"language": None, "full_text": "", "segments": [], "aliases": {}, "metadata": {}},
+        )
+        self.assertEqual(denied_response.status_code, 404)
+
+    def test_speaker_alias_validation_rejects_unsafe_identifiers(self):
+        with patch("app.services.note_repository.session_scope", self._session_scope):
+            note = self.repository.create_note(
+                "user-1",
+                NoteCreateRequest(title="Aliases", content="body"),
+            )
+            response = self.client.patch(
+                f"/api/notes/{note.id}/speakers",
+                json={"aliases": {"../speaker": "Unsafe"}},
+            )
+
+        self.assertEqual(response.status_code, 400)
 
     def test_get_note_media_returns_404_without_task_id(self):
         with patch("app.services.note_repository.session_scope", self._session_scope), patch.object(

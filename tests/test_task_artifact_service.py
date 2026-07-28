@@ -1,5 +1,6 @@
 import tempfile
 import unittest
+import json
 from pathlib import Path
 
 from app.models.audio import AudioDownloadResult
@@ -20,6 +21,7 @@ class TaskArtifactServiceTest(unittest.TestCase):
                 language="zh",
                 full_text="hello world",
                 segments=[TranscriptSegment(start=0.0, end=1.0, text="hello world")],
+                metadata={"provider": "local"},
             )
             audio_meta = AudioDownloadResult(
                 file_path="demo.mp3",
@@ -44,6 +46,7 @@ class TaskArtifactServiceTest(unittest.TestCase):
             loaded_transcript = service.load_transcript(final_dir)
             self.assertIsNotNone(loaded_transcript)
             self.assertEqual(loaded_transcript.full_text, "hello world")
+            self.assertEqual(loaded_transcript.metadata, {"provider": "local"})
 
             status_payload = service.get_status("task-123")
             result_payload = service.get_result("task-123")
@@ -66,6 +69,35 @@ class TaskArtifactServiceTest(unittest.TestCase):
             self.assertTrue(staged.exists())
             self.assertEqual(staged.parent.name, "media")
             self.assertEqual(staged.read_bytes(), b"video")
+
+    def test_source_media_manifest_preserves_exact_bytes_and_rejects_escape(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            service = TaskArtifactService(Path(temp_dir) / "output")
+            task_dir = service.create_task_dir("task-source")
+            source_file = Path(temp_dir) / "meeting.webm"
+            original_bytes = b"\x1aE\xdf\xa3original-recorder-bytes"
+            source_file.write_bytes(original_bytes)
+
+            staged = service.stage_source_media(task_dir, str(source_file), media_kind="audio")
+            manifest = json.loads((task_dir / "source_media.json").read_text(encoding="utf-8"))
+
+            self.assertEqual(staged.read_bytes(), original_bytes)
+            self.assertEqual(manifest["relative_path"], "media/source_audio.webm")
+            self.assertEqual(manifest["media_kind"], "audio")
+            self.assertEqual(manifest["size_bytes"], len(original_bytes))
+            self.assertEqual(service.resolve_source_media(task_dir), staged.resolve())
+
+            staged.write_bytes(b"tampered")
+            self.assertIsNone(service.resolve_source_media(task_dir))
+            staged.write_bytes(original_bytes)
+
+            escaped = Path(temp_dir) / "outside.webm"
+            escaped.write_bytes(b"outside")
+            (task_dir / "source_media.json").write_text(
+                json.dumps({"relative_path": "../../outside.webm"}),
+                encoding="utf-8",
+            )
+            self.assertIsNone(service.resolve_source_media(task_dir))
 
 
 if __name__ == "__main__":

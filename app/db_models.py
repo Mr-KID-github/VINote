@@ -62,6 +62,7 @@ class NoteDB(Base):
     source_type: Mapped[str | None] = mapped_column(String(32), nullable=True)
     task_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
     status: Mapped[str] = mapped_column(String(32), default="done")
+    structured_json: Mapped[str | None] = mapped_column(Text, nullable=True)
     scope: Mapped[str] = mapped_column(String(16), default="personal")
     team_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("teams.id", ondelete="SET NULL"), nullable=True, index=True)
     share_token: Mapped[str | None] = mapped_column(String(64), unique=True, nullable=True, index=True)

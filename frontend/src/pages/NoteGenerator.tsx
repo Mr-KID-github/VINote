@@ -76,6 +76,7 @@ export function NoteGenerator() {
     id: string,
     workspace = currentWorkspace,
     sourceUrl?: string,
+    sourceType?: string,
   ) => {
     pollRef.current = setInterval(async () => {
       try {
@@ -94,6 +95,7 @@ export function NoteGenerator() {
             sourceUrl || undefined,
             data.result?.task_id || id,
             workspace,
+            sourceType,
           )
           if (note) {
             navigate(`/note/${note.id}`)
@@ -191,7 +193,12 @@ export function NoteGenerator() {
       setStatus('processing')
       setCurrentStep('transcribing')
       setProgress(30)
-      pollTaskStatus(data.task_id, generationWorkspace, sourceUrl)
+      const submittedSourceType = uploadMode === 'transcript'
+        ? 'transcript'
+        : uploadMode === 'file'
+          ? selectedFile?.type.startsWith('video/') ? 'video' : 'audio'
+          : undefined
+      pollTaskStatus(data.task_id, generationWorkspace, sourceUrl, submittedSourceType)
     } catch (generationError) {
       setStatus('failed')
       setError(generationError instanceof Error ? generationError.message : copy.generator.unknownError)

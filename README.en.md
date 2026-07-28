@@ -19,6 +19,8 @@ Current stack:
 - Generate structured Markdown notes from video URLs, local audio/video files, or local transcript files
 - Record meetings from a minimalist in-app floating recorder, then automatically transcribe and summarize them
 - Skip the STT step when a transcript is already available
+- Review summary and transcript evidence in separate editor views, switch between raw and cleaned text, rename speakers, follow media playback, and export the transcript
+- Preserve the exact uploaded media bytes in a safe task manifest while keeping any normalized transcription copy separate
 - Support multiple summary modes: `default`, `accurate`, `oneshot`
 - Add key moments, timestamp jumps, and screenshots
 - Save notes and continue editing in the built-in editor
@@ -33,6 +35,8 @@ Current stack:
 - The meeting recorder uploads browser recordings as local audio and saves the result with `source_type = meeting_recording`
 - `POST /api/generate` handles remote URL input
 - `POST /api/generate_from_upload` handles browser multipart uploads for local audio, video, and transcript files
+- `GET /api/notes/{note_id}/transcript` reads the note's local transcript evidence and provenance metadata
+- `PATCH /api/notes/{note_id}/speakers` stores note-specific speaker display names
 - Transcript uploads support `TXT`, `MD`, `SRT`, `VTT`, and `JSON` and skip STT entirely
 
 ## Documentation

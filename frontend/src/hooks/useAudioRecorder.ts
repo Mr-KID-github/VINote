@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { requestDesktopMicrophoneAccess } from '../lib/desktopMicrophonePermission'
 import { checkMicrophoneReadiness, mapMicrophoneError } from '../lib/microphonePermission'
-import { normalizeAudioBlob } from '../lib/audioNormalizer'
 
 type AudioRecorderStatus = 'idle' | 'requesting' | 'recording' | 'paused' | 'stopped' | 'failed'
 
@@ -210,26 +209,9 @@ export function useAudioRecorder() {
           reject(new Error('microphone_no_audio'))
           return
         }
-        // Re-encode through the browser's WebAudio graph. This decouples the
-        // uploaded bytes from any quirks of MediaRecorder's webm muxer (Tauri's
-        // WKWebView has been observed to write a shifted EBML header that
-        // breaks libavformat). The transcriber always sees a canonical 16kHz
-        // mono WAV.
-        try {
-          const normalized = await normalizeAudioBlob(rawBlob)
-          if (normalized.size > 0) {
-            mimeTypeRef.current = normalized.type || 'audio/wav'
-            setStatus('stopped')
-            resolve(normalized)
-            return
-          }
-        } catch (normalizationError) {
-          // Fall through to the raw blob if decoding fails — the backend
-          // normalizer will surface a clean error rather than swallowing it.
-          if (typeof console !== 'undefined') {
-            console.warn('[useAudioRecorder] normalize failed:', normalizationError)
-          }
-        }
+        // Preserve the exact MediaRecorder container. The backend keeps this
+        // source artifact and creates a separate normalized copy only when the
+        // selected transcriber cannot decode the original container.
         setStatus('stopped')
         resolve(rawBlob)
       }
