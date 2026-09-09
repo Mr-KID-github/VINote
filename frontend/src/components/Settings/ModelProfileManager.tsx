@@ -1,3 +1,4 @@
+import { SavedApiKey } from './SavedApiKey'
 import { useEffect, useRef, useState } from 'react'
 import clsx from 'clsx'
 import { Plus, RotateCcw, Trash2, Wifi } from 'lucide-react'
@@ -188,7 +189,7 @@ export function ModelProfileManager() {
             </div>
           ) : (
             <div className="stealth-scroll max-h-[620px] space-y-3 overflow-y-auto pr-1">
-              {profiles.map((profile) => {
+              {profiles.filter(profile => profile.id !== 'vilab-cloud').map((profile) => {
                 const profileResult = profileTestResults?.[profile.id]
                 const isTestingProfile = testingProfileIds?.includes(profile.id)
                 return (
@@ -216,7 +217,7 @@ export function ModelProfileManager() {
                         {profile.provider} / {profile.modelName}
                       </p>
                       <p className="mt-2 break-all text-xs leading-5 text-gray-400">{profile.baseUrl}</p>
-                      <p className="mt-1 text-xs text-gray-400">{copy.modelProfiles.keyPrefix} {profile.apiKeyHint}</p>
+                      <SavedApiKey key={profile.updatedAt} kind="model" profileId={profile.id} hint={profile.apiKeyHint} />
                       {(isTestingProfile || profileResult) && (
                         <p
                           className={clsx(

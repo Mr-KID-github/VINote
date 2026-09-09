@@ -37,6 +37,11 @@ def create_transcriber(config: ResolvedSTTConfig | None = None) -> Transcriber:
     resolved = config or STTProfileService().resolve_config(user_id=None, stt_profile_id=None)
     t_type = resolved.provider.lower()
 
+    if t_type == "vliab-server":
+        from app.transcribers.vilab_transcriber import VILabTranscriber
+
+        return VILabTranscriber(resolved.base_url or "", resolved.api_key or "", resolved.model_name, resolved.language, resolved.cloud_user_id)
+
     if t_type == "groq":
         from app.transcribers.groq_transcriber import GroqWhisperTranscriber
 

@@ -1,5 +1,6 @@
 import tempfile
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 
 from app.models.audio import AudioDownloadResult
@@ -126,6 +127,43 @@ class FakeScreenshotService:
 
 
 class NoteServiceTest(unittest.TestCase):
+    def setUp(self):
+        mode = patch("app.services.vilab_cloud_service.VILabCloudService.status",
+                     return_value={"mode": "local"})
+        mode.start()
+        self.addCleanup(mode.stop)
+
+    def test_failure_after_rename_is_visible_to_polling(self):
+        with tempfile.TemporaryDirectory() as root:
+            artifacts = TaskArtifactService(Path(root))
+            service = NoteService(downloader=FakeDownloader("audio.mp3"),
+                                  llm_service=FakeLLMService(), artifact_service=artifacts)
+            original_save = artifacts.save_audio_meta
+            def fail_after_rename(directory, meta):
+                if directory.name != "task-fail":
+                    raise OSError("metadata write failed")
+                return original_save(directory, meta)
+            with patch.object(artifacts, "save_audio_meta", side_effect=fail_after_rename):
+                with self.assertRaises(OSError):
+                    service.generate("https://example.com/video", "task-fail")
+            self.assertEqual(artifacts.get_status("task-fail")["status"], "failed")
+
+    def test_unselected_cloud_models_fail_before_download(self):
+        with tempfile.TemporaryDirectory() as root:
+            downloader = FakeDownloader("audio.mp3")
+            artifacts = TaskArtifactService(Path(root))
+            service = NoteService(downloader=downloader, llm_service=FakeLLMService(),
+                                  artifact_service=artifacts)
+            with patch("app.services.vilab_cloud_service.VILabCloudService.status", return_value={
+                "mode": "cloud", "configured": True, "asr_model": "", "llm_model": ""
+            }), patch("app.services.vilab_cloud_service.VILabCloudService.defaults", return_value={
+                "asr_model": "", "llm_model": ""
+            }):
+                with self.assertRaises(ValueError):
+                    service.generate("https://example.com/video", "task-cloud", user_id="user")
+            self.assertEqual(downloader.download_calls, [])
+            self.assertEqual(artifacts.get_status("task-cloud")["status"], "failed")
+
     def test_generate_uses_split_services_and_persists_artifacts(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             audio_file = Path(temp_dir) / "audio.mp3"

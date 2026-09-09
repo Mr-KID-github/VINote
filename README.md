@@ -26,6 +26,8 @@ VINote 是一个将视频或音频内容转换为结构化 Markdown 笔记的全
 - 保存笔记并在内置编辑器中继续修改
 - 支持公开只读分享链接
 - 支持 LLM / STT 配置管理
+- 模型设置分为「云端模型」和「本地 / 自定义」：云端直接使用部署的 VILab Server 模型，无需额外账号或用户密钥；本地模式支持本机 STT 与自行配置的兼容 API。
+- 自定义配置的已保存密钥支持显示 / 隐藏，仅配置所有者可读取，失焦或 30 秒后自动隐藏。
 - 同时提供独立文档站与 FastAPI Swagger / ReDoc
 - 文档支持中英文双语，默认中文，英文入口为 `/en/`
 
@@ -60,6 +62,16 @@ API 参考：
 如果文档站和 Swagger 描述不一致，以 Swagger 为准，然后再修正文档。
 
 ## 本地开发
+
+### 云端模型部署配置
+
+由部署管理员在根目录 `.env` 中设置 `VILAB_SERVER_URL`（本地联调为 `http://127.0.0.1:9878`）、`VINOTE_SUPABASE_URL` 和 `VINOTE_SUPABASE_PUBLISHABLE_KEY`。在模型设置中注册/登录 VINote 云端账号，后端加密保存并刷新个人令牌；模型供应商密钥只配置在 VILab Server。未配置 Supabase 时保留 `VILAB_API_KEY` 部署凭证兼容路径。未配置服务地址时默认使用本地 / 自定义模式。
+
+顶部常驻「云端 / 本地」全局切换，点击后立即按 VINote 用户保存，刷新、切页和重新启动后保留。设置页与顶部共享同一状态；视频链接、文件上传、文字稿和会议录音统一遵循该模式，旧窗口残留的模型配置不能覆盖全局模式。进行中的任务保持开始处理时的模式，切换只影响后续任务。
+
+用户在设置中选择云端 STT 与 LLM 模型并保存。转写使用 `/v1/asr/transcriptions`，总结使用 `/openai/v1/chat/completions`。VILab 返回整段转写时仅标记文件级时间范围，不提供虚构的逐句时间戳。云端返回 401/403 时需要管理员修复服务鉴权，用户仍可直接切换本地模式；切换模式本身不依赖云端在线。
+
+新增 VINote API 均要求登录：`GET/PUT /api/vilab/config`、`PUT /api/vilab/mode`、`GET /api/vilab/models`。自定义密钥按需读取接口为 `POST /api/model-profiles/{id}/reveal-key`、`POST /api/stt-profiles/{id}/reveal-key`，响应禁用缓存。
 
 依赖要求：
 
@@ -107,6 +119,7 @@ yarn web:dev     # 仅浏览器 Web 客户端
 ```
 
 如果 `3100` 端口上已经有 VINote 的 Vite 开发服务器，桌面开发模式会直接复用它。
+`yarn client:dev` 使用跨平台 Node.js 脚本启动前端，可在 Windows PowerShell 和 macOS 终端中运行，不依赖 Bash；需要先启动后端。桌面开发需要 Rust 工具链，以及 Windows C++ 构建工具或 macOS Xcode Command Line Tools。
 `yarn dev` 会自动选择已安装后端依赖的 Python；如需手动指定，可设置 `VINOTE_PYTHON=/path/to/python`。
 如果 `.env` 中的本地 Postgres 暂时不可达，`yarn dev` 会仅在当前开发会话中临时改用 `data/vinote.dev.db` SQLite 数据库，不会修改 `.env`。
 
@@ -316,3 +329,22 @@ npm run build
 - 浏览器认证使用后端签发的 HttpOnly Cookie
 - 侧边栏 `Document` 可通过 `VITE_DOCS_BASE_URL` 指向独立文档站
 - 如果文档和代码不一致，以代码为准，并在同一改动中修正文档
+
+### VINote 独立云端账号（本地联调）
+
+云端账号接口为 `GET/DELETE /api/vilab/account`、`POST /api/vilab/account/code`、`POST /api/vilab/account/verify`，需要当前 VINote 登录。通过邮箱验证后关联独立云端身份，不按相同邮箱自动合并历史账号。当前本地账号登录保留，云端在设置页单独连接。Supabase 需要配置 SMTP，并把注册确认和 Magic Link 邮件模板设为显示 `{{ .Token }}` 验证码。
+
+模型请求只发送到 `VILAB_SERVER_URL`，不会从 VINote 直接请求供应商。云端 ASR 上传前会用 ffmpeg 转成 16 kHz 单声道 PCM WAV。短期令牌与刷新令牌加密保存在 `cloud_accounts`，不返回浏览器。退出会清理该用户的云端会话；数据库使用 SQLite 时请使用单个后端 worker。
+
+本地服务端启动及联调结果见 `docs/plans/2026-09-09-cloud-account-integration.md`。尚未把服务器 LAN 地址设为发行默认值。
+
+
+### VINote 统一云端登录
+
+配置 `VINOTE_SUPABASE_URL` 和 `VINOTE_SUPABASE_PUBLISHABLE_KEY` 后，登录页区分登录和注册：`/api/auth/sign-in` 使用 Supabase 邮箱密码认证；注册通过 `/api/auth/register/code` 设置密码并发送验证码，再经 `/api/auth/register/verify` 验证邮箱。邮箱与用户身份的权威绑定保存在该 Supabase 项目的 `auth.users`，个人访问凭证由 Supabase 签发（JWT 的 `sub` 对应该用户），不是另建一份固定模型 API Key。验证成功同时建立 VINote HttpOnly 会话并加密保存可刷新的 Supabase 会话；模型页不再提供第二次登录。访问令牌与刷新令牌不写入公开用户资料表。VILab Server 验证此项目的用户令牌后，按 `(issuer, subject)` 解析业务账号；模型供应商密钥仅保存在 VILab Server。配置 Supabase 后只显示统一账号的登录/注册入口；本地/云端是模型运行模式，不是两套账号。未配置 Supabase 的独立部署保留原有密码认证。
+
+### 云端当前模型
+
+VINote 云端模式在每次生成任务开始时通过 VILab Server 的已认证 `GET /v1/default-models` 读取服务端当前 LLM 和 STT，并在任务中保持该选择。桌面端不提供云端模型选择或密钥输入；仅本地模式显示自定义配置。服务端调整当前模型后，新任务自动生效。实时 STT 的请求超时按音频时长计算。
+
+桌面会议录音通过异步 Tauri 命令打开独立录音窗口，避免 Windows WebView2 同步创建窗口死锁；录音进行中重复打开只聚焦窗口，不重载录音会话。前端开发页面由 Vite 热更新，Rust 修改需重新编译桌面端。

@@ -107,6 +107,7 @@ yarn web:dev     # browser web client only
 ```
 
 When VINote's Vite dev server is already running on port `3100`, desktop development mode reuses it.
+`yarn client:dev` starts the frontend with a cross-platform Node.js script and works in Windows PowerShell and macOS terminals without Bash. Start the backend separately. Desktop development requires Rust and either Windows C++ build tools or macOS Xcode Command Line Tools.
 `yarn dev` automatically selects a Python executable that has the backend dependencies installed; set `VINOTE_PYTHON=/path/to/python` to override it.
 If the local Postgres URL from `.env` is not reachable, `yarn dev` temporarily uses `data/vinote.dev.db` SQLite for that development session without modifying `.env`.
 

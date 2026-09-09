@@ -1,6 +1,7 @@
 import { apiJson } from './api'
 
 export type STTProviderType =
+  | 'vliab-server'
   | 'groq'
   | 'whisper'
   | 'faster-whisper'
@@ -108,17 +109,23 @@ const buildDraftPayload = (draft: Partial<STTProfileDraft>) => {
   }
 
   switch (draft.provider) {
+    case 'vliab-server':
+      if (draft.baseUrl !== undefined) payload.base_url = draft.baseUrl
+      if (draft.modelName !== undefined) payload.model_name = draft.modelName || null
+      if (draft.apiKey !== undefined && draft.apiKey.trim()) payload.api_key = draft.apiKey
+      if (draft.language !== undefined) payload.language = normalizeLanguage(draft.language)
+      break
     case 'groq':
-      if (draft.modelName !== undefined) payload.model_name = draft.modelName
+      if (draft.modelName !== undefined) payload.model_name = draft.modelName || null
       if (draft.apiKey !== undefined && draft.apiKey.trim()) payload.api_key = draft.apiKey
       if (draft.language !== undefined) payload.language = normalizeLanguage(draft.language)
       break
     case 'whisper':
-      if (draft.modelName !== undefined) payload.model_name = draft.modelName
+      if (draft.modelName !== undefined) payload.model_name = draft.modelName || null
       if (draft.device !== undefined) payload.device = draft.device
       break
     case 'faster-whisper':
-      if (draft.modelName !== undefined) payload.model_name = draft.modelName
+      if (draft.modelName !== undefined) payload.model_name = draft.modelName || null
       if (draft.device !== undefined) payload.device = draft.device
       if (draft.computeType !== undefined) payload.compute_type = draft.computeType
       if (draft.language !== undefined) payload.language = normalizeLanguage(draft.language)
@@ -128,7 +135,7 @@ const buildDraftPayload = (draft: Partial<STTProfileDraft>) => {
       if (draft.language !== undefined) payload.language = normalizeLanguage(draft.language)
       break
     case 'sensevoice-local':
-      if (draft.modelName !== undefined) payload.model_name = draft.modelName
+      if (draft.modelName !== undefined) payload.model_name = draft.modelName || null
       if (draft.language !== undefined) payload.language = normalizeLanguage(draft.language)
       if (draft.useGpu !== undefined) payload.use_gpu = draft.useGpu
       break

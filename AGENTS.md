@@ -106,6 +106,9 @@ Important backend variables:
 - `SHARE_BASE_URL`: optional override for generated public share links; when empty, the backend tries to infer a LAN URL automatically.
 - `MODEL_PROFILE_ENCRYPTION_KEY`: required to store/decrypt model profile API keys.
   - the same encryption key is also used for Groq STT profile API keys
+- `VILAB_SERVER_URL` and `VILAB_API_KEY`: administrator-managed cloud service Origin and external API key. VINote users do not enter cloud credentials or sign in to ViTalk. Cloud model choices and cloud/local mode are stored per user in `vilab_preferences`.
+- `AppModeSwitch` in the app header and `ModelSourcePanel` share `appModeStore`. `PUT /api/vilab/mode` persists mode independently of cloud availability. The backend enforces global mode over stale per-request profile ids; each pipeline snapshots mode while transcribing and summarizing. Profile lists expose only the active mode's models.
+- `vilab_cloud_service.py` calls the deployed server's `/v1/models`, `/v1/asr/transcriptions`, and `/openai/v1/chat/completions`. `ModelSourcePanel` exposes cloud versus local/custom settings. Authenticated VINote endpoints: `GET/PUT /api/vilab/config`, `GET /api/vilab/models`; custom profile keys can be revealed by their owner through `POST /api/{model,stt}-profiles/{id}/reveal-key` with no-store responses.
 - `CORS_ALLOW_ORIGINS`: defaults include browser dev origins plus Tauri desktop origins such as `http://tauri.localhost` and `tauri://localhost`.
 
 Frontend Vite settings live in `frontend/.env.local`:
@@ -114,7 +117,7 @@ Frontend Vite settings live in `frontend/.env.local`:
   - local dev special case: when the frontend runs on port `3100`, the sidebar `Document` link defaults to `http://localhost:3101/`
 
 Tauri desktop settings live in `frontend/src-tauri/tauri.conf.json`:
-- `beforeDevCommand` runs `bash ../scripts/ensure-web-dev.sh`, so Tauri desktop development reuses an existing Vite server on port `3100` or starts one when needed.
+- `beforeDevCommand` runs `node ../scripts/ensure-web-dev.mjs`, so Tauri desktop development reuses an existing Vite server on port `3100` or starts one when needed, without requiring Bash on Windows.
 - `beforeBuildCommand` runs `npm run web:build:tauri`, which builds static assets with `VITE_API_BASE_URL=http://localhost:8900`.
 - Desktop bundles are generated under `frontend/src-tauri/target/release/bundle/`; macOS defaults to a `.app` bundle.
 
@@ -167,8 +170,14 @@ Update `README.md`, this `AGENTS.md`, or both whenever you change:
 - Prefer updating versions once per merge-ready PR or release unit, not on every intermediate commit.
 
 ## Notes for Agents
+- Cloud generation validates model selections before downloading/preparing input. Task directory titles are trimmed after truncation for Windows compatibility; `.task_id` is written before renaming so subsequent failures remain discoverable. The generator treats `not_found` as a terminal error.
 - The current frontend supports local audio/video uploads and direct transcript uploads from the browser.
 - The note generator UI exposes both LLM profile selection and STT profile selection; `default` summary mode still auto-switches to hierarchical summarization for longer transcripts.
 - Share links are public read-only links backed by `notes.share_token` and can be disabled from the note editor.
 - Saved notes are now explicitly scoped as either personal notes or team notes. Team notes require `scope="team"` plus a valid `team_id`, and any signed-in team member can open them through the normal note APIs.
 - If documentation and code disagree, trust the code, then fix the documentation in the same change.
+
+## Cloud account integration development
+- `cloud_account_service.py` owns VINote Supabase email OTP linking, encrypted sessions and token rotation. `VINOTE_SUPABASE_URL` / `VINOTE_SUPABASE_PUBLISHABLE_KEY` enable personal authentication; configured personal auth never falls back to the deployment key.
+- Cloud account endpoints under `/api/vilab/account` require local VINote authentication. `cloud_accounts` maps local users to unique `(issuer, subject)` identities.
+- Local VILab Server integration uses configurable `http://127.0.0.1:9878`; do not change the deployed LAN server until the user deploys the modified branch.

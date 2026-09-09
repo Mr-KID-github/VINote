@@ -35,16 +35,16 @@ class TaskArtifactService:
             final_dir = self.output_dir / f"{new_dir_name}_{counter}"
             counter += 1
 
+        # Move the mapping with the directory so errors after rename remain traceable.
+        self.write_text(task_dir / ".task_id", task_id)
         task_dir.rename(final_dir)
-        self.write_text(final_dir / ".task_id", task_id)
         return final_dir
 
     @staticmethod
     def sanitize_filename(name: str) -> str:
         invalid_chars = '<>:"/\\|?*'
-        sanitized = "".join(char for char in name if char not in invalid_chars).strip()
-        sanitized = sanitized or "note"
-        return sanitized[:50] if len(sanitized) > 50 else sanitized
+        sanitized = "".join(char for char in name if char not in invalid_chars and ord(char) >= 32).strip()
+        return sanitized[:50].rstrip(" .") or "note"
 
     @staticmethod
     def write_json(file_path: Path, payload: dict) -> None:

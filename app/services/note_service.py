@@ -97,6 +97,9 @@ class NoteService:
         step_timings: dict[str, float] = {}
 
         try:
+            from app.services.vilab_cloud_service import VILabCloudService
+
+            VILabCloudService().validate_ready(user_id, needs_stt=True)
             step_start = time.time()
             self.artifact_service.update_status(task_dir, "downloading", "Downloading audio...")
             audio_meta = self._download_audio(video_url=video_url, task_dir=task_dir)
@@ -123,8 +126,9 @@ class NoteService:
             )
         except Exception as exc:
             logger.error("[Pipeline] task=%s failed: %s", task_id, exc, exc_info=True)
-            if task_dir.exists():
-                self.artifact_service.update_status(task_dir, "failed", str(exc))
+            failed_dir = self.artifact_service.find_task_dir(task_id) or task_dir
+            if failed_dir.exists():
+                self.artifact_service.update_status(failed_dir, "failed", str(exc))
             raise
 
     def generate_from_file(
@@ -151,6 +155,9 @@ class NoteService:
         step_timings: dict[str, float] = {}
 
         try:
+            from app.services.vilab_cloud_service import VILabCloudService
+
+            VILabCloudService().validate_ready(user_id, needs_stt=True)
             step_start = time.time()
             self.artifact_service.update_status(task_dir, "preparing", "Preparing local audio file...")
             audio_meta = self._build_local_audio_meta(file_path=file_path, task_id=task_id, title=title)
@@ -178,8 +185,9 @@ class NoteService:
             )
         except Exception as exc:
             logger.error("[Pipeline] local task=%s failed: %s", task_id, exc, exc_info=True)
-            if task_dir.exists():
-                self.artifact_service.update_status(task_dir, "failed", str(exc))
+            failed_dir = self.artifact_service.find_task_dir(task_id) or task_dir
+            if failed_dir.exists():
+                self.artifact_service.update_status(failed_dir, "failed", str(exc))
             raise
 
     def generate_from_transcript(
@@ -203,6 +211,9 @@ class NoteService:
         step_timings: dict[str, float] = {}
 
         try:
+            from app.services.vilab_cloud_service import VILabCloudService
+
+            VILabCloudService().validate_ready(user_id, needs_stt=False)
             step_start = time.time()
             self.artifact_service.update_status(task_dir, "preparing", "Preparing uploaded transcript...")
             audio_meta = self._build_transcript_audio_meta(transcript=transcript, task_id=task_id, title=title)
@@ -230,8 +241,9 @@ class NoteService:
             )
         except Exception as exc:
             logger.error("[Pipeline] transcript task=%s failed: %s", task_id, exc, exc_info=True)
-            if task_dir.exists():
-                self.artifact_service.update_status(task_dir, "failed", str(exc))
+            failed_dir = self.artifact_service.find_task_dir(task_id) or task_dir
+            if failed_dir.exists():
+                self.artifact_service.update_status(failed_dir, "failed", str(exc))
             raise
 
     def _download_audio(self, *, video_url: str, task_dir: Path) -> AudioDownloadResult:
@@ -325,8 +337,11 @@ class NoteService:
         )
 
         try:
-            transcript = self._transcribe_audio(context)
-            markdown = self._summarize_audio(context, transcript)
+            from app.services.vilab_cloud_service import VILabCloudService
+
+            with VILabCloudService().task_snapshot(user_id):
+                transcript = self._transcribe_audio(context)
+                markdown = self._summarize_audio(context, transcript)
             markdown = self._enrich_markdown_with_media(context, transcript, markdown)
             result = self._build_result(context, transcript, markdown)
 

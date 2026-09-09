@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useI18n } from '../../lib/i18n'
 import { useAuthStore } from '../../stores/authStore'
 import { ThemeToggle } from './ThemeToggle'
+import { AppModeSwitch } from './AppModeSwitch'
 
 const brandMarkUrl = `${import.meta.env.BASE_URL}vinote-mark.svg`
 
@@ -37,10 +38,11 @@ export function Header({ sidebarCollapsed, onToggleSidebar }: HeaderProps) {
           <img src={brandMarkUrl} alt="" className="h-8 w-8" />
           <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">VINote</h1>
         </div>
+        <div className="ml-2 border-l border-gray-200 pl-4 dark:border-gray-700"><AppModeSwitch /></div>
       </div>
 
       <div className="flex items-center gap-2">
-        <div className="relative">
+        <div className="relative hidden xl:block">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
           <input
             type="text"

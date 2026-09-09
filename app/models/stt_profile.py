@@ -5,6 +5,7 @@ from pydantic import BaseModel, Field
 
 
 STTProviderType = Literal[
+    "vliab-server",
     "groq",
     "whisper",
     "faster-whisper",
@@ -69,6 +70,7 @@ class LocalSTTSupportStatus(BaseModel):
 
 
 class ResolvedSTTConfig(BaseModel):
+    cloud_user_id: Optional[str] = None
     provider: STTProviderType
     model_name: Optional[str] = None
     base_url: Optional[str] = None

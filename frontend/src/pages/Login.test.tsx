@@ -1,3 +1,4 @@
+vi.mock("../lib/api", () => ({ apiJson: vi.fn().mockResolvedValue({ email_code: false }) }))
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi, beforeEach } from 'vitest'
@@ -49,7 +50,7 @@ describe('Login sign up form', () => {
 
     expect(screen.queryByLabelText('Confirm password')).not.toBeInTheDocument()
 
-    await userEvent.click(screen.getByRole('button', { name: 'Create account' }))
+    await userEvent.click(await screen.findByRole('button', { name: 'Create account' }))
 
     expect(screen.getByLabelText('Confirm password')).toBeInTheDocument()
     expect(screen.getByText('Password must be at least 6 characters.')).toBeInTheDocument()
@@ -58,7 +59,7 @@ describe('Login sign up form', () => {
   it('blocks sign up when the confirmation password does not match', async () => {
     renderLogin()
 
-    await userEvent.click(screen.getByRole('button', { name: 'Create account' }))
+    await userEvent.click(await screen.findByRole('button', { name: 'Create account' }))
     await userEvent.type(screen.getByLabelText('Email'), 'user@example.com')
     await userEvent.type(screen.getByLabelText('Password'), 'abcdef')
     await userEvent.type(screen.getByLabelText('Confirm password'), 'abcdeg')
