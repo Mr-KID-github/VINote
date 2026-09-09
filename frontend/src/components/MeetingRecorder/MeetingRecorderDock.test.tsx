@@ -161,30 +161,28 @@ describe('MeetingRecorderDock', () => {
     await userEvent.click(screen.getByRole('button', { name: '开始会议录音' }))
 
     expect(audioRecorderMock.start).not.toHaveBeenCalled()
-    expect(screen.getByRole('region', { name: 'recording' })).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: '会议录音' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: '弹出独立录音窗口' })).not.toBeInTheDocument()
 
     await userEvent.click(screen.getByRole('button', { name: '开始' }))
 
     expect(audioRecorderMock.start).toHaveBeenCalledTimes(1)
     expect(screen.getByText('录音中')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: '停止' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: '停止' })).toBeEnabled()
   })
 
-  it('requires pausing before Stop is enabled', async () => {
+  it('allows stopping directly while recording', async () => {
     renderDock()
 
     await userEvent.click(screen.getByRole('button', { name: '开始会议录音' }))
     await userEvent.click(screen.getByRole('button', { name: '开始' }))
 
     const stopWhileRecording = screen.getByRole('button', { name: '停止' })
-    expect(stopWhileRecording).toBeDisabled()
+    expect(stopWhileRecording).toBeEnabled()
     await userEvent.click(stopWhileRecording)
-    expect(audioRecorderMock.stop).not.toHaveBeenCalled()
-
-    await userEvent.click(screen.getByRole('button', { name: '暂停' }))
-
-    expect(screen.getByRole('button', { name: '停止' })).toBeEnabled()
+    expect(audioRecorderMock.stop).toHaveBeenCalledOnce()
+    expect(await screen.findByRole('button', { name: '生成会议纪要' })).toBeEnabled()
+    expect(meetingGenerationMock.submitMeetingRecording).not.toHaveBeenCalled()
   })
 
   it('opens the native recorder window instead of recording in the desktop main window', async () => {
@@ -195,7 +193,7 @@ describe('MeetingRecorderDock', () => {
 
     expect(desktopRecorderWindowMock.openRecorderWindow).toHaveBeenCalledTimes(1)
     expect(audioRecorderMock.start).not.toHaveBeenCalled()
-    expect(screen.queryByRole('region', { name: 'recording' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('region', { name: '会议录音' })).not.toBeInTheDocument()
   })
 
   it('auto-starts recording when mounted inside the native recorder window', async () => {
@@ -204,7 +202,7 @@ describe('MeetingRecorderDock', () => {
     renderDock({ autoStart: true })
 
     await waitFor(() => expect(audioRecorderMock.start).toHaveBeenCalledTimes(1))
-    expect(screen.getByRole('region', { name: 'recording' })).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: '会议录音' })).toBeInTheDocument()
     expect(desktopRecorderWindowMock.setRecorderWindowLayout).toHaveBeenCalledWith('expanded')
   })
 
@@ -213,7 +211,7 @@ describe('MeetingRecorderDock', () => {
     desktopRecorderWindowMock.isRecorderWindowRoute.mockReturnValue(true)
     renderDock({ autoStart: true })
 
-    const region = await screen.findByRole('region', { name: 'recording' })
+    const region = await screen.findByRole('region', { name: '会议录音' })
 
     expect(screen.getByTestId('meeting-recorder-native-surface')).toBeInTheDocument()
     expect(region).not.toHaveClass('fixed')
@@ -257,6 +255,7 @@ describe('MeetingRecorderDock', () => {
     await userEvent.click(screen.getByRole('button', { name: '开始' }))
     await userEvent.click(screen.getByRole('button', { name: '暂停' }))
     await userEvent.click(screen.getByRole('button', { name: '停止' }))
+    await userEvent.click(await screen.findByRole('button', { name: '生成会议纪要' }))
 
     await waitFor(() => {
       expect(saveNoteMock).toHaveBeenCalledWith(
@@ -281,7 +280,7 @@ describe('MeetingRecorderDock', () => {
     await userEvent.click(screen.getByRole('button', { name: '开始' }))
     await userEvent.click(screen.getByRole('button', { name: '暂停' }))
     await userEvent.click(screen.getByRole('button', { name: '停止' }))
-
+    await userEvent.click(await screen.findByRole('button', { name: '生成会议纪要' }))
     const statusLine = await screen.findByTestId('meeting-recorder-status')
     expect(statusLine).toHaveTextContent('音频已保留')
     expect(statusLine).toHaveTextContent('请先配置可用的 LLM 和 STT API Key')
@@ -314,19 +313,19 @@ describe('MeetingRecorderDock', () => {
     await userEvent.click(screen.getByRole('button', { name: '关闭' }))
 
     expect(screen.getByRole('dialog', { name: '放弃这段会议录音？' })).toBeInTheDocument()
-    expect(screen.getByRole('region', { name: 'recording' })).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: '会议录音' })).toBeInTheDocument()
     expect(audioRecorderMock.reset).not.toHaveBeenCalled()
 
     await userEvent.click(screen.getByRole('button', { name: '继续录音' }))
     expect(screen.queryByRole('dialog', { name: '放弃这段会议录音？' })).not.toBeInTheDocument()
-    expect(screen.getByRole('region', { name: 'recording' })).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: '会议录音' })).toBeInTheDocument()
 
     await userEvent.click(screen.getByRole('button', { name: '关闭' }))
     await userEvent.click(screen.getByRole('button', { name: '放弃' }))
 
     expect(audioRecorderMock.reset).toHaveBeenCalledTimes(1)
     await waitFor(() =>
-      expect(screen.queryByRole('region', { name: 'recording' })).not.toBeInTheDocument(),
+      expect(screen.queryByRole('region', { name: '会议录音' })).not.toBeInTheDocument(),
     )
   })
 
@@ -344,7 +343,7 @@ describe('MeetingRecorderDock', () => {
       { target: dragHandle, keys: '[/MouseLeft]', coords: { x: 930, y: 620 } },
     ])
 
-    expect(screen.queryByRole('region', { name: 'recording' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('region', { name: '会议录音' })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: '恢复会议录音悬浮窗' })).toBeInTheDocument()
   })
 
@@ -361,7 +360,7 @@ describe('MeetingRecorderDock', () => {
 
     expect(useMeetingRecorderStore.getState().phase).toBe('recording')
     expect(useMeetingRecorderStore.getState().elapsedSeconds).toBe(12)
-    expect(screen.queryByRole('region', { name: 'recording' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('region', { name: '会议录音' })).not.toBeInTheDocument()
   })
 
   it('closes (destroys) the native recorder window on close when no recoverable recording exists', async () => {
@@ -415,11 +414,11 @@ describe('MeetingRecorderDock', () => {
       useMeetingRecorderStore.getState().setPhase('completed')
       useMeetingRecorderStore.getState().closePanel()
     })
-    expect(screen.queryByRole('region', { name: 'recording' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('region', { name: '会议录音' })).not.toBeInTheDocument()
 
     act(() => openHandler?.())
 
-    await waitFor(() => expect(screen.getByRole('region', { name: 'recording' })).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByRole('region', { name: '会议录音' })).toBeInTheDocument())
     expect(useMeetingRecorderStore.getState().phase).toBe('idle')
   })
 

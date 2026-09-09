@@ -48,7 +48,15 @@ export async function setRecorderWindowSize(width: number, height: number) {
 
 export async function closeCurrentRecorderWindow() {
   if (!isTauriRuntime() || !isRecorderWindowRoute()) return
-  await getCurrentWindow().close()
+  const recorderWindow = getCurrentWindow()
+  try {
+    await recorderWindow.close()
+  } catch (error) {
+    // A running desktop shell may predate allow-close while its frontend has
+    // hot-reloaded. It already permits hide; the next open resets inactive windows.
+    if (!/not allowed|not permitted|denied|allow-close/i.test(String(error))) throw error
+    await recorderWindow.hide()
+  }
 }
 
 export async function startCurrentRecorderWindowDrag() {

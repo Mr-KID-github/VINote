@@ -18,8 +18,10 @@ export async function apiJson<T>(path: string, init: RequestInit = {}) {
     headers.set('Content-Type', 'application/json')
   }
   const response = await apiFetch(path, { ...init, headers })
+  if (response.status === 204 || response.status === 205) return undefined as T
   const contentType = response.headers.get('content-type') || ''
-  const payload = contentType.includes('application/json') ? await response.json() : await response.text()
+  const body = await response.text()
+  const payload = contentType.includes('application/json') && body.trim() ? JSON.parse(body) : body
 
   if (!response.ok) {
     const detail =

@@ -440,7 +440,7 @@ export function MeetingRecorderDock({ autoStart = false }: MeetingRecorderDockPr
     setPhase('requesting')
     try {
       await recorder.start()
-      setPhase('recording')
+      if (useMeetingRecorderStore.getState().phase === 'requesting') setPhase('recording')
     } catch (startError) {
       failStage('uploading', formatRecorderFailure(startError, recorderCopy))
     }
@@ -468,7 +468,7 @@ export function MeetingRecorderDock({ autoStart = false }: MeetingRecorderDockPr
   }
 
   const handleStop = async () => {
-    if (phase !== 'paused') return
+    if (phase !== 'paused' && phase !== 'recording') return
     if (finishInFlightRef.current) return
     finishInFlightRef.current = true
     try {
@@ -483,7 +483,7 @@ export function MeetingRecorderDock({ autoStart = false }: MeetingRecorderDockPr
       recordingIdRef.current = persistedId
       setRecordingId(persistedId)
       await saveRecordedAudio(persistedId, audioBlob)
-      await generateFromAudio(audioBlob)
+      setPhase('stopped')
     } catch (stopError) {
       const failedStage = stageFromError(stopError)
       const failureMessage = formatRecorderFailure(stopError, recorderCopy)
@@ -516,6 +516,18 @@ export function MeetingRecorderDock({ autoStart = false }: MeetingRecorderDockPr
     })
     setGeneratedNote({ title: note.title, markdown: note.content, taskId: response.task_id })
     complete(note.id)
+  }
+
+  const handleGenerate = async () => {
+    if (phase !== 'stopped' || !recordedAudio || finishInFlightRef.current) return
+    finishInFlightRef.current = true
+    try {
+      await generateFromAudio(recordedAudio)
+    } catch (error) {
+      failStage(stageFromError(error), formatRecorderFailure(error, recorderCopy))
+    } finally {
+      finishInFlightRef.current = false
+    }
   }
 
   const createMeetingDraft = async (draftTaskId: string, audioBlob: Blob, startedAt: Date) => {
@@ -663,6 +675,15 @@ export function MeetingRecorderDock({ autoStart = false }: MeetingRecorderDockPr
   }
 
   const handleRequestClose = async () => {
+    if (phase === 'requesting' && !hasRecoverableRecording) {
+      recorder.reset()
+      discardSession()
+      if (isRecorderWindow) {
+        await setRecorderActive(false)
+        await closeCurrentRecorderWindow()
+      }
+      return
+    }
     if (hasRecoverableRecording || NATIVE_PROTECTED_PHASES.includes(phase)) {
       requestClose()
       return
@@ -717,7 +738,7 @@ export function MeetingRecorderDock({ autoStart = false }: MeetingRecorderDockPr
   const elapsedLabel = formatElapsedTime(elapsedSeconds)
   const isProcessing = PROCESSING_PHASES.includes(phase)
   const canStart = phase === 'idle' || phase === 'failed'
-  const canStop = phase === 'paused'
+  const canStop = phase === 'paused' || phase === 'recording'
   const canRetry = phase === 'failed' && (hasRecoverableRecording || Boolean(taskId))
   const statusLabel = phaseLabel(phase, recorderCopy)
   const statusText = phase === 'failed' && error
@@ -808,7 +829,10 @@ export function MeetingRecorderDock({ autoStart = false }: MeetingRecorderDockPr
               <div className="flex shrink-0 flex-col gap-2">
                 <button
                   type="button"
-                  onClick={cancelCloseRequest}
+                  onClick={() => {
+                    cancelCloseRequest()
+                    if (phase === 'paused') handleResume()
+                  }}
                   className="rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-[#111827] hover:bg-gray-50"
                 >
                   {recorderCopy.keepRecording}
@@ -849,7 +873,7 @@ export function MeetingRecorderDock({ autoStart = false }: MeetingRecorderDockPr
             </div>
             <div className="h-16 w-px bg-gray-200" />
             <div className="min-w-0 flex-1">
-              <div className="text-sm font-semibold leading-5">{recorderCopy.title}</div>
+              <div className="text-sm font-semibold leading-5">{isProcessing ? statusLabel : recorderCopy.title}</div>
               <div className="mt-2 flex items-center gap-2.5">
                 <span data-testid="meeting-recorder-expanded-dot" className={clsx('h-2.5 w-2.5', recordingDotClass(phase, 'shadow-[0_0_0_4px_rgba(239,43,45,0.10)]'))} />
                 <span className="font-mono text-xl font-semibold leading-none tabular-nums tracking-tight">{elapsedLabel}</span>
@@ -863,12 +887,24 @@ export function MeetingRecorderDock({ autoStart = false }: MeetingRecorderDockPr
                   />
                 ))}
               </div>
-              <div data-testid="meeting-recorder-status" className={clsx('mt-1 max-w-[150px] truncate text-[11px]', phase === 'failed' ? 'text-red-600' : 'text-[#8B9099]')} title={statusText}>
+              <div role={phase === 'failed' ? 'alert' : 'status'} data-testid="meeting-recorder-status" className={clsx('mt-1 max-w-[150px] text-[11px] leading-4', phase === 'failed' ? 'text-red-600' : 'text-[#8B9099]')} title={statusText}>
                 {statusText}
               </div>
             </div>
             <div data-testid="meeting-recorder-controls" className="ml-2 mt-1 flex shrink-0 items-center gap-3">
-              {phase === 'failed' ? (
+              {isProcessing ? (
+                <div className="flex flex-col items-center gap-2 text-xs text-blue-600" role="status">
+                  <Loader2 className="h-8 w-8 animate-spin" />
+                  <span>{statusLabel}</span>
+                </div>
+              ) : phase === 'stopped' ? (
+                <div className="flex flex-col gap-2">
+                  <button type="button" onClick={() => void handleGenerate()} className="rounded-lg bg-primary-light px-3 py-2 text-xs text-white">{language === 'zh-CN' ? '生成会议纪要' : 'Generate minutes'}</button>
+                  <button type="button" onClick={() => void handleRequestClose()} className="text-xs text-red-600">{recorderCopy.discard}</button>
+                </div>
+              ) : phase === 'completed' ? (
+                <button type="button" onClick={() => void handleViewNote()} className="rounded-lg bg-primary-light px-3 py-2 text-xs text-white">{recorderCopy.viewNote}</button>
+              ) : phase === 'failed' ? (
                 <>
                   <button
                     type="button"
@@ -902,7 +938,7 @@ export function MeetingRecorderDock({ autoStart = false }: MeetingRecorderDockPr
                   <button
                     type="button"
                     onClick={canStart ? () => void handleStart() : phase === 'paused' ? handleResume : handlePause}
-                    disabled={isProcessing || phase === 'completed'}
+                    disabled={isProcessing}
                     aria-label={canStart ? recorderCopy.start : phase === 'paused' ? recorderCopy.resume : recorderCopy.pause}
                     className="group flex flex-col items-center gap-1 text-xs text-[#111827] disabled:cursor-not-allowed disabled:opacity-40"
                   >
@@ -930,12 +966,6 @@ export function MeetingRecorderDock({ autoStart = false }: MeetingRecorderDockPr
               )}
             </div>
           </div>
-
-          {notification?.kind === 'success' ? (
-            <div className="mt-2 flex justify-end">
-              <button type="button" onClick={() => void handleViewNote()} className="text-xs font-medium text-emerald-700 underline underline-offset-2" aria-label={recorderCopy.viewNote}>{recorderCopy.viewNote}</button>
-            </div>
-          ) : null}
             </>
           )}
         </section>

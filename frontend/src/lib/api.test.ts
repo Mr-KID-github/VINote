@@ -3,6 +3,27 @@ import { apiJson } from './api'
 
 afterEach(() => vi.unstubAllGlobals())
 
+it('accepts successful deletion with an empty JSON-labelled 204 response', async () => {
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(null, {
+    status: 204, headers: { 'Content-Type': 'application/json' },
+  })))
+  await expect(apiJson<void>('/api/notes/test', { method: 'DELETE' })).resolves.toBeUndefined()
+})
+
+it('accepts empty successful bodies without parsing JSON', async () => {
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('', {
+    headers: { 'Content-Type': 'application/json' },
+  })))
+  await expect(apiJson('/api/test')).resolves.toBe('')
+})
+
+it('still reports a failed request with an empty body', async () => {
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(null, {
+    status: 500, headers: { 'Content-Type': 'application/json' },
+  })))
+  await expect(apiJson('/api/test')).rejects.toThrow()
+})
+
 it('sends JSON headers for authentication payloads', async () => {
   const fetchMock = vi.fn().mockResolvedValue(new Response('{}', { headers: { 'Content-Type': 'application/json' } }))
   vi.stubGlobal('fetch', fetchMock)
