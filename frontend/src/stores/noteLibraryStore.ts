@@ -219,6 +219,7 @@ export const useNoteLibraryStore = create<NoteLibraryState>((set, get) => ({
       set({
         error: error instanceof Error ? error.message : 'Failed to delete note',
       })
+      throw error
     }
   },
   createShareLink: async (id) => {

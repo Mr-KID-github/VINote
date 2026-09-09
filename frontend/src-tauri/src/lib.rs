@@ -96,14 +96,18 @@ fn recorder_window_position(app: &AppHandle) -> Option<LogicalPosition<f64>> {
 }
 
 #[tauri::command]
-fn open_recorder_window(app: AppHandle) -> Result<String, String> {
+async fn open_recorder_window(app: AppHandle) -> Result<String, String> {
+    // WebView2 window creation must not run in a synchronous IPC command:
+    // it can deadlock the Windows UI thread before microphone access begins.
     if let Some(window) = app.get_webview_window(RECORDER_WINDOW_LABEL) {
         // Recover the window from whatever state it was left in by a prior
         // close / hide cycle. Re-navigate first so a stale or unloaded webview
         // recreates the recorder React tree instead of relying on an event
         // listener that may no longer exist.
-        if let Ok(url) = window.url() {
-            let _ = window.navigate(recorder_window_reopen_url(url));
+        if !app.state::<RecorderRuntimeState>().is_active() {
+            if let Ok(url) = window.url() {
+                let _ = window.navigate(recorder_window_reopen_url(url));
+            }
         }
         let _ = window.unminimize();
         let _ = window.show();

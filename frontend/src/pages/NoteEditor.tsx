@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { ArrowLeft, Download, Edit3, Eye, FileText, MessageSquare, MoreHorizontal, Save, Share2 } from 'lucide-react'
+import { ArrowLeft, Download, Edit3, Eye, FileText, MessageSquare, Trash2, Save, Share2 } from 'lucide-react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { MarkdownContent } from '../components/Markdown/MarkdownContent'
 import { KeyMomentsRail } from '../components/Notes/KeyMomentsRail'
@@ -160,7 +160,12 @@ export function NoteEditor() {
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const { copy, locale } = useI18n()
-  const { loadNoteById, updateNote, createShareLink, getShareLink, disableShareLink } = useNoteLibraryStore()
+  const { loadNoteById, updateNote, deleteNote, createShareLink, getShareLink, disableShareLink } = useNoteLibraryStore()
+  const [deleteOpen, setDeleteOpen] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+  const [deleteError, setDeleteError] = useState('')
+  const deleteButtonRef = useRef<HTMLButtonElement>(null)
+  const zh = locale.startsWith('zh')
   const workspaceRef = useRef<HTMLDivElement | null>(null)
   const previewRef = useRef<HTMLDivElement | null>(null)
   const audioRef = useRef<HTMLAudioElement | null>(null)
@@ -629,12 +634,39 @@ export function NoteEditor() {
           >
             <Share2 className="h-5 w-5" />
           </button>
-          <button className="rounded-xl bg-white/80 p-2 shadow-sm hover:bg-white dark:bg-[#1a1a1a] dark:hover:bg-[#232323]">
-            <MoreHorizontal className="h-5 w-5" />
+          <button ref={deleteButtonRef} onClick={() => { setDeleteError(''); setDeleteOpen(true) }} title={zh ? '删除笔记' : 'Delete note'} aria-label={zh ? '删除笔记' : 'Delete note'} className="rounded-xl bg-white/80 p-2 text-red-600 shadow-sm hover:bg-red-50 dark:bg-[#1a1a1a] dark:text-red-400 dark:hover:bg-red-950/30">
+            <Trash2 className="h-5 w-5" />
           </button>
         </div>
       </div>
 
+      {deleteOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div role="alertdialog" aria-modal="true" aria-labelledby="delete-note-title" aria-describedby="delete-note-description" className="w-full max-w-md space-y-4 rounded-2xl bg-white p-6 shadow-xl dark:bg-[#1b1b1b]" onKeyDown={event => {
+            if (event.key === 'Escape' && !deleting) { setDeleteOpen(false); deleteButtonRef.current?.focus() }
+            if (event.key === 'Tab') {
+              const buttons = Array.from(event.currentTarget.querySelectorAll<HTMLButtonElement>('button:not(:disabled)'))
+              const first = buttons[0], last = buttons[buttons.length - 1]
+              if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus() }
+              else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus() }
+            }
+          }}>
+            <h2 id="delete-note-title" className="text-lg font-semibold">{zh ? '删除笔记？' : 'Delete this note?'}</h2>
+            <p id="delete-note-description" className="text-sm leading-6 text-gray-500 dark:text-gray-400">{zh ? `将删除“${localTitle}”，此操作不可撤销，未保存的修改也会丢失。` : `“${localTitle}” will be deleted permanently, including any unsaved changes.`}</p>
+            {deleteError && <p role="alert" className="text-sm text-red-600 dark:text-red-400">{deleteError}</p>}
+            <div className="flex justify-end gap-3">
+              <button autoFocus disabled={deleting} onClick={() => { setDeleteOpen(false); deleteButtonRef.current?.focus() }} className="rounded-xl border border-gray-200 px-4 py-2 text-sm hover:bg-gray-100 disabled:opacity-60 dark:border-gray-700 dark:hover:bg-gray-800">{zh ? '取消' : 'Cancel'}</button>
+              <button disabled={deleting || !id} onClick={async () => {
+                if (!id) return
+                setDeleting(true); setDeleteError('')
+                try { await deleteNote(id); navigate('/notes', { replace: true }) }
+                catch (cause) { setDeleteError(cause instanceof Error ? cause.message : (zh ? '删除失败，请重试' : 'Could not delete note. Please retry.')) }
+                finally { setDeleting(false) }
+              }} className="rounded-xl bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-60">{deleting ? (zh ? '删除中…' : 'Deleting…') : (zh ? '确认删除' : 'Confirm deletion')}</button>
+            </div>
+          </div>
+        </div>
+      )}
       {error ? (
         <div className="border-b border-red-200 bg-red-50 px-4 py-2 text-sm text-red-600 dark:border-red-900/40 dark:bg-red-900/20 dark:text-red-300">
           {error}
