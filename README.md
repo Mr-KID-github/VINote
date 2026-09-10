@@ -369,3 +369,5 @@ VINote 云端模式在每次生成任务开始时通过 VILab Server 的已认�
 Supabase 的 Reset password 邮件模板须包含 `{{ .Token }}`，用户在桌面端输入验证码，无需跳转 localhost 登录链接。密码不正确、邮箱未验证、验证码过期、服务暂不可用分别显示可操作的错误提示。
 
 安装包云端依赖服务器已部署支持多身份来源与 `/v1/default-models` 的对应分支。服务端保留 ViTalk 的身份来源，并在 `VILAB_AUTH_SUPABASE_SOURCES_JSON` 添加 VINote 的 Project URL 和 publishable key；安装包构建成功不代表远端部署已经升级。
+
+Windows 覆盖安装/卸载会检查并关闭 VINote 主进程及其 `vinote-backend.exe` 后端，避免旧进程占用 DLL。打包后端监视桌面父进程，即使安装器强制关闭主窗口，后端也会自动退出；用户数据保存在独立应用数据目录，不随安装文件覆盖。

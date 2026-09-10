@@ -3,6 +3,31 @@ import json
 import os
 from pathlib import Path
 import sys
+import subprocess
+
+import pytest
+
+
+@pytest.mark.skipif(os.name != 'nt', reason='Windows installer force-close regression')
+def test_backend_exits_when_desktop_is_force_closed():
+    root = Path(__file__).resolve().parents[1]
+    desktop = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(60)'])
+    backend = subprocess.Popen([
+        sys.executable, '-u', '-c',
+        'import sys,time; from scripts.desktop_backend import watch_parent; '
+        'watch_parent(int(sys.argv[1])); print("ready"); time.sleep(60)',
+        str(desktop.pid),
+    ], cwd=root, stdout=subprocess.PIPE, text=True)
+    try:
+        assert backend.stdout.readline().strip() == 'ready'
+        desktop.terminate()
+        desktop.wait(timeout=5)
+        assert backend.wait(timeout=5) == 0
+    finally:
+        for process in (desktop, backend):
+            if process.poll() is None:
+                process.kill()
+            process.wait(timeout=5)
 
 
 def test_packaged_config_keeps_secrets_and_data_outside_bundle(tmp_path, monkeypatch):

@@ -56,6 +56,7 @@ const tauriConfig = join(staging, 'tauri-package.json')
 writeFileSync(tauriConfig, JSON.stringify({
   build: { beforeBuildCommand: '' },
   bundle: { targets: process.platform === 'win32' ? ['nsis'] : ['app', 'dmg'],
+    ...(process.platform === 'win32' ? { windows: { nsis: { installerHooks: join(root, 'frontend/src-tauri/installer-hooks.nsh') } } } : {}),
     resources: { [join(staging, 'dist/vinote-backend/')]: 'backend/' } },
 }))
 exec(process.execPath, [join(root, 'frontend/node_modules/@tauri-apps/cli/tauri.js'), 'build', '--config', tauriConfig], { cwd: join(root, 'frontend') })

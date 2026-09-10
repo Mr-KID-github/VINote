@@ -6,6 +6,30 @@ import secrets
 import sys
 
 
+def watch_parent(parent_pid):
+    """Also exit when an installer force-kills the desktop (Rust Drop cannot run)."""
+    import threading
+    def wait():
+        if os.name == 'nt':
+            import ctypes
+            from ctypes import wintypes
+            kernel = ctypes.WinDLL('kernel32', use_last_error=True)
+            kernel.OpenProcess.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
+            kernel.OpenProcess.restype = wintypes.HANDLE
+            kernel.WaitForSingleObject.argtypes = [wintypes.HANDLE, wintypes.DWORD]
+            kernel.CloseHandle.argtypes = [wintypes.HANDLE]
+            handle = kernel.OpenProcess(0x00100000, False, parent_pid)
+            if handle:
+                kernel.WaitForSingleObject(handle, 0xFFFFFFFF)
+                kernel.CloseHandle(handle)
+        else:
+            import time
+            while os.getppid() == parent_pid:
+                time.sleep(0.5)
+        os._exit(0)
+    threading.Thread(target=wait, daemon=True, name='desktop-parent-watch').start()
+
+
 def configure():
     state = Path(os.environ['VINOTE_DESKTOP_DATA']).resolve()
     state.mkdir(parents=True, exist_ok=True)
@@ -34,6 +58,8 @@ def main():
     import multiprocessing
     multiprocessing.freeze_support()
     bundle = configure()
+    if os.environ.get('VINOTE_DESKTOP_PARENT_PID'):
+        watch_parent(int(os.environ['VINOTE_DESKTOP_PARENT_PID']))
     from app import create_app
     from fastapi.staticfiles import StaticFiles
     from starlette.exceptions import HTTPException

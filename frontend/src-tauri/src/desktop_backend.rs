@@ -27,7 +27,8 @@ pub fn start(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     };
     let binary = app.path().resource_dir()?.join("backend").join(if cfg!(windows) { "vinote-backend.exe" } else { "vinote-backend" });
     let mut command = Command::new(binary);
-    command.current_dir(&data).env("VINOTE_DESKTOP_DATA", &data).env("PORT", port.to_string());
+    command.current_dir(&data).env("VINOTE_DESKTOP_DATA", &data).env("PORT", port.to_string())
+        .env("VINOTE_DESKTOP_PARENT_PID", std::process::id().to_string());
     let log = std::fs::OpenOptions::new().create(true).append(true).open(data.join("backend.log"))?;
     command.stdout(log.try_clone()?).stderr(log);
     #[cfg(windows)] {
