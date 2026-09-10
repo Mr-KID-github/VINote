@@ -5,13 +5,13 @@
   "description": "VINote workspace command shortcuts",
   "packageManager": "yarn@1.22.22",
   "scripts": {
-    "dev": "bash scripts/dev-desktop.sh",
-    "api:dev": "python3 -m uvicorn main:app --host 0.0.0.0 --port 8900 --reload",
-    "client:dev": "yarn --cwd frontend dev",
+    "dev": "node scripts/dev-desktop.mjs",
+    "api:dev": "node scripts/dev-api.mjs",
+    "client:dev": "node scripts/dev-desktop.mjs",
     "web:dev": "yarn --cwd frontend web:dev",
     "build": "yarn --cwd frontend build",
     "preview": "yarn --cwd frontend preview",
-    "desktop:build": "yarn --cwd frontend desktop:build",
+    "desktop:build": "node scripts/build-desktop.mjs",
     "docs:dev": "yarn --cwd docs docs:dev",
     "docs:build": "yarn --cwd docs docs:build"
   }

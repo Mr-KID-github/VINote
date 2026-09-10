@@ -62,10 +62,10 @@ The backend can also run as a lightweight MCP server through `mcp_server.py`.
 - Backend direct run: `python main.py`
 - Root desktop + backend shortcut: `yarn dev`
 - Root backend-only shortcut: `yarn api:dev`
-- Root desktop-client-only shortcut: `yarn client:dev`
+- Root desktop + backend shortcut (Node.js 22+): `yarn client:dev`
 - Root browser frontend shortcut: `yarn web:dev`
   - `yarn dev` auto-selects a Python executable with backend dependencies; `VINOTE_PYTHON=/path/to/python` overrides it.
-  - If the configured local Postgres is unreachable, `yarn dev` temporarily uses `data/vinote.dev.db` SQLite for that session without editing `.env`.
+  - Configured database failures are reported; the startup script does not switch to another database. Without DATABASE_URL the backend uses its SQLite default.
 - Frontend install: `cd frontend && npm install`
 - Frontend web dev server only: `cd frontend && npm run web:dev`
 - Tauri desktop hot-reload dev: `cd frontend && yarn dev` or `cd frontend && npm run dev`
@@ -118,7 +118,7 @@ Frontend Vite settings live in `frontend/.env.local`:
 
 Tauri desktop settings live in `frontend/src-tauri/tauri.conf.json`:
 - `beforeDevCommand` runs `node ../scripts/ensure-web-dev.mjs`, so Tauri desktop development reuses an existing Vite server on port `3100` or starts one when needed, without requiring Bash on Windows.
-- `beforeBuildCommand` runs `npm run web:build:tauri`, which builds static assets with `VITE_API_BASE_URL=http://localhost:8900`.
+- Use root `yarn desktop:build`: scripts/build-desktop.mjs packages the Python backend and FFmpeg, builds the frontend with same-origin requests, and invokes Tauri with a generated resource/bundle config. Direct `tauri build` does not prepare these resources.
 - Desktop bundles are generated under `frontend/src-tauri/target/release/bundle/`; macOS defaults to a `.app` bundle.
 
 Raspberry Pi deployment defaults live in `deploy/pi/local.env`:
@@ -181,3 +181,7 @@ Update `README.md`, this `AGENTS.md`, or both whenever you change:
 - `cloud_account_service.py` owns VINote Supabase email OTP linking, encrypted sessions and token rotation. `VINOTE_SUPABASE_URL` / `VINOTE_SUPABASE_PUBLISHABLE_KEY` enable personal authentication; configured personal auth never falls back to the deployment key.
 - Cloud account endpoints under `/api/vilab/account` require local VINote authentication. `cloud_accounts` maps local users to unique `(issuer, subject)` identities.
 - Local VILab Server integration uses configurable `http://127.0.0.1:9878`; do not change the deployed LAN server until the user deploys the modified branch.
+
+Desktop packaging: scripts/desktop_backend.py initializes per-install secrets and SQLite in the user app data directory. Release-only desktop_backend.rs starts the bundled backend on a persisted per-install loopback port and stops it on exit. Packaged cloud defaults to http://192.168.1.143:9876; source development uses VILAB_SERVER_URL or http://127.0.0.1:9878. The two products remain independent processes/repos.
+
+Fresh-checkout startup: yarn client:dev runs bootstrap-dev.mjs to install frontend dependencies, create .venv and install requirements, and create .env with unique local secrets and config/desktop-public.json account defaults. Existing .env is preserved. --setup-only performs initialization without opening a window. Node 22+, Python, Rust/platform compilers and FFmpeg are system prerequisites.
