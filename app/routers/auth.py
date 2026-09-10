@@ -28,6 +28,21 @@ class LoginCode(LoginEmail):
     code: str = Field(min_length=6, max_length=10, pattern=r"^\d+$")
 
 
+class ResetPassword(LoginCode):
+    password: str = Field(min_length=6, max_length=128)
+
+
+@router.post("/auth/password/code")
+def password_code(payload: LoginEmail):
+    return CloudAccountService().request_password_reset(payload.email)
+
+
+@router.post("/auth/password/reset")
+def password_reset(payload: ResetPassword, response: Response):
+    response.headers["Cache-Control"] = "no-store"
+    return CloudAccountService().reset_password(payload.email, payload.code, payload.password)
+
+
 @router.get("/auth/config")
 def auth_config():
     return {"email_code": bool(settings.cloud_auth_url and settings.cloud_auth_public_key)}
@@ -48,6 +63,8 @@ def login_verify(payload: LoginCode, response: Response):
 
 @router.post("/auth/sign-up", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
 def sign_up(payload: AuthCredentials, response: Response):
+    if settings.cloud_auth_url:
+        raise HTTPException(400, "请通过邮箱验证注册 VINote 账号")
     user = create_user(payload)
     set_auth_cookie(response, create_access_token(user))
     return user

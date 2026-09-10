@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { apiJson } from '../lib/api'
 import { useAuthStore } from '../stores/authStore'
+import { PasswordRecovery } from './PasswordRecovery'
 
 export function EmailLogin({ isLogin, onSwitch }: { isLogin: boolean; onSwitch: () => void }) {
   const [email, setEmail] = useState('')
@@ -11,6 +12,7 @@ export function EmailLogin({ isLogin, onSwitch }: { isLogin: boolean; onSwitch: 
   const [busy, setBusy] = useState(false)
   const [seconds, setSeconds] = useState(0)
   const [message, setMessage] = useState('')
+  const [recovering, setRecovering] = useState(false)
   const navigate = useNavigate()
   useEffect(() => {
     if (!seconds) return
@@ -23,6 +25,7 @@ export function EmailLogin({ isLogin, onSwitch }: { isLogin: boolean; onSwitch: 
     finally { setBusy(false) }
   }
   const field = 'w-full rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-gray-900 outline-none focus:ring-2 focus:ring-primary-light dark:border-gray-700 dark:bg-[#191919] dark:text-gray-100'
+  if (recovering) return <PasswordRecovery email={email} onBack={() => { setRecovering(false); setPassword(''); setMessage('') }} />
   return <form className="space-y-4" onSubmit={event => {
     event.preventDefault()
     void run(async () => {
@@ -46,6 +49,7 @@ export function EmailLogin({ isLogin, onSwitch }: { isLogin: boolean; onSwitch: 
       })}>{seconds ? `${seconds} 秒后重发` : '获取验证码'}</button>
     </div>
     </>}
+    {isLogin && <button type="button" disabled={busy} onClick={() => setRecovering(true)} className="text-sm text-primary-light hover:underline">忘记密码 / 首次设置密码</button>}
     {message && <p role="status" className="text-sm text-gray-500 dark:text-gray-400">{message}</p>}
     <button disabled={busy} className="w-full rounded-lg bg-primary-light px-4 py-3 font-medium text-white hover:opacity-90 disabled:opacity-50 dark:bg-primary-dark">{busy ? '处理中…' : isLogin ? '登录' : '注册'}</button>
     <button type="button" disabled={busy} className="w-full text-center text-sm text-primary-light hover:underline" onClick={() => { onSwitch(); setMessage(''); setCode('') }}>{isLogin ? '没有账号？创建账号' : '已有账号？返回登录'}</button>

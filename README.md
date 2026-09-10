@@ -361,3 +361,11 @@ VINote 云端模式在每次生成任务开始时通过 VILab Server 的已认�
 
 `VINOTE_PYTHON` 可指定 Python；`VINOTE_FFMPEG_PATH`、`VINOTE_FFPROBE_PATH` 可指定打包用的二进制文件。macOS 请使用可分发的同架构 FFmpeg（其动态依赖也须可分发）。
 首次运行检查可用：yarn client:dev --setup-only（只初始化依赖/配置，不打开额外桌面窗口）。邮箱公共配置来自 config/desktop-public.json，用户不需要填写云端模型 API Key；自托管版本可通过 .env 覆盖公开账号配置。源码处理音视频需要 PATH 中的 FFmpeg 和 FFprobe。
+
+### 账号登录与密码恢复（桌面端）
+
+启用 VINote Supabase 后，注册使用邮箱、密码与注册验证码；日常登录使用邮箱密码。历史验证码账号若尚未设置密码，可使用“忘记密码 / 首次设置密码”，通过邮箱恢复验证码设置密码，原账号和笔记保持不变。后端 `/api/auth/password/code` 发送恢复邮件，`/api/auth/password/reset` 验证 recovery OTP 后更新密码，不向前端返回 Supabase 令牌。配置云端认证时，旧本地注册接口拒绝另建本地账号。
+
+Supabase 的 Reset password 邮件模板须包含 `{{ .Token }}`，用户在桌面端输入验证码，无需跳转 localhost 登录链接。密码不正确、邮箱未验证、验证码过期、服务暂不可用分别显示可操作的错误提示。
+
+安装包云端依赖服务器已部署支持多身份来源与 `/v1/default-models` 的对应分支。服务端保留 ViTalk 的身份来源，并在 `VILAB_AUTH_SUPABASE_SOURCES_JSON` 添加 VINote 的 Project URL 和 publishable key；安装包构建成功不代表远端部署已经升级。

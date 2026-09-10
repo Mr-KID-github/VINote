@@ -131,3 +131,47 @@ def test_registration_sets_password_and_verifies_signup_code(cloud, monkeypatch)
     assert calls[0] == ("signup", {"email": "a@example.com", "password": "password"})
     assert service.confirm_registration("a@example.com", "12345678") == "registered"
     assert calls[1][1]["type"] == "signup"
+
+
+def test_recovery_requires_verified_otp_before_password_update(cloud, monkeypatch):
+    service, _ = cloud
+    calls = []
+    def request(path, payload=None, token=None, method=None):
+        calls.append((path, payload, token, method))
+        if path == "verify":
+            assert payload["type"] == "recovery"
+            return {"access_token": "recovery-session"}
+        assert token == "recovery-session" and method == "PUT"
+        return {}
+    monkeypatch.setattr(module, "_request", request)
+    result = service.reset_password("A@example.com", "12345678", "new-password")
+    assert calls[0][1]["email"] == "a@example.com"
+    assert calls[1][1] == {"password": "new-password"}
+    assert "recovery-session" not in json.dumps(result)
+
+
+def test_recovery_invalid_otp_never_changes_password(cloud, monkeypatch):
+    service, _ = cloud
+    calls = []
+    def request(path, *args, **kwargs):
+        calls.append(path)
+        raise HTTPException(401, "invalid OTP")
+    monkeypatch.setattr(module, "_request", request)
+    with pytest.raises(HTTPException):
+        service.reset_password("a@example.com", "12345678", "new-password")
+    assert calls == ["verify"]
+
+
+@pytest.mark.parametrize("code,status,expected", [
+    ("invalid_credentials", 400, "忘记密码"),
+    ("email_not_confirmed", 400, "邮箱尚未验证"),
+    ("otp_expired", 403, "验证码无效"),
+    ("unexpected", 503, "账号服务暂时不可用"),
+])
+def test_auth_errors_are_actionable_without_upstream_secrets(cloud, monkeypatch, code, status, expected):
+    import httpx
+    monkeypatch.setattr(httpx, "request", lambda *a, **kw: httpx.Response(status, json={"error_code": code, "msg": "secret-upstream-value"}))
+    with pytest.raises(HTTPException) as error:
+        module._request("token?grant_type=password", {})
+    assert expected in error.value.detail
+    assert "secret-upstream-value" not in error.value.detail

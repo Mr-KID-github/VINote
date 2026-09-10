@@ -29,14 +29,14 @@ def _cipher():
     return Fernet(base64.urlsafe_b64encode(digest))
 
 
-def _request(path, payload=None, token=None):
+def _request(path, payload=None, token=None, method=None):
     if not settings.cloud_auth_url or not settings.cloud_auth_public_key:
         raise HTTPException(503, "VINote 云端账号服务尚未配置")
     headers = {"apikey": settings.cloud_auth_public_key}
     if token:
         headers["Authorization"] = "Bearer " + token
     try:
-        response = httpx.request("GET" if payload is None else "POST",
+        response = httpx.request(method or ("GET" if payload is None else "POST"),
                                  settings.cloud_auth_url + "/auth/v1/" + path,
                                  headers=headers, json=payload, timeout=20,
                                  follow_redirects=False)
@@ -45,8 +45,23 @@ def _request(path, payload=None, token=None):
     if not response.is_success:
         if response.status_code == 429:
             raise HTTPException(429, "操作过于频繁，请稍后重试")
-        raise HTTPException(401 if response.status_code < 500 else 502,
-                            "账号验证失败，请检查邮箱、密码或验证码")
+        try:
+            code = response.json().get("error_code", "")
+        except (ValueError, AttributeError):
+            code = ""
+        messages = {
+            "invalid_credentials": "邮箱或密码不正确；曾使用验证码登录的账号，请通过忘记密码设置登录密码。",
+            "email_not_confirmed": "邮箱尚未验证，请完成注册验证后登录。",
+            "otp_expired": "验证码无效或已过期，请获取新验证码。",
+            "weak_password": "密码不符合安全要求，请使用更长且包含字母和数字的密码。",
+            "same_password": "新密码不能与当前密码相同。",
+            "user_already_exists": "账号已注册，请登录或使用忘记密码。",
+            "email_exists": "邮箱已注册，请登录或使用忘记密码。",
+        }
+        if response.status_code >= 500:
+            raise HTTPException(502, "账号服务暂时不可用，请稍后重试。")
+        raise HTTPException(401 if code in {"invalid_credentials", "otp_expired"} else 400,
+                            messages.get(code, "账号请求未成功，请稍后重试或联系管理员。"))
     return response.json() if response.content else {}
 
 
@@ -78,6 +93,16 @@ class CloudAccountService:
         _cipher()
         session = _request("token?grant_type=password", {"email": email, "password": password})
         return self.finish_login(session)
+
+    def request_password_reset(self, email):
+        _request("recover", {"email": email.strip().lower()})
+        return {"message": "若邮箱已注册，将收到重设密码验证码，请检查邮箱。"}
+
+    def reset_password(self, email, code, password):
+        # Only a freshly verified recovery OTP may authorize this update.
+        session = _request("verify", {"email": email.strip().lower(), "token": code, "type": "recovery"})
+        _request("user", {"password": password}, token=session["access_token"], method="PUT")
+        return {"message": "密码已更新，请使用新密码登录。"}
 
     def register(self, email, password):
         _cipher()
