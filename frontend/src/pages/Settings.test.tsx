@@ -1,5 +1,6 @@
 import { render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
+import { MemoryRouter } from 'react-router-dom'
 import { I18nProvider } from '../lib/i18n'
 import { Settings } from './Settings'
 
@@ -22,9 +23,11 @@ vi.mock('../stores/themeStore', () => ({
 describe('Settings page layout', () => {
   it('uses the full available main area instead of centering a narrow settings canvas', () => {
     render(
-      <I18nProvider>
-        <Settings />
-      </I18nProvider>
+      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+        <I18nProvider>
+          <Settings />
+        </I18nProvider>
+      </MemoryRouter>
     )
 
     const page = screen.getByRole('heading', { name: '设置' }).parentElement as HTMLElement

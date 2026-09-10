@@ -1,4 +1,6 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { EmailLogin } from '../components/EmailLogin'
+import { apiJson } from '../lib/api'
 import { useNavigate } from 'react-router-dom'
 import { Eye, EyeOff, Lock, Mail } from 'lucide-react'
 import { AppFooter } from '../components/Layout/AppFooter'
@@ -8,6 +10,25 @@ import { useAuthStore } from '../stores/authStore'
 const brandMarkUrl = `${import.meta.env.BASE_URL}vinote-mark.svg`
 
 export function Login() {
+  const [emailLogin, setEmailLogin] = useState<boolean | null>(null)
+  const [retryConfig, setRetryConfig] = useState(0)
+  useEffect(() => {
+    let active = true
+    let timer: ReturnType<typeof setTimeout>
+    const load = async (attempt: number) => {
+      try {
+        const value = await apiJson<{ email_code: boolean }>('/api/auth/config')
+        if (active) { setEmailLogin(value.email_code); setError('') }
+      } catch {
+        if (!active) return
+        if (attempt < 3) timer = setTimeout(() => void load(attempt + 1), 1000)
+        else setError('无法连接登录服务，请稍后重试')
+      }
+    }
+    setError('')
+    void load(0)
+    return () => { active = false; clearTimeout(timer) }
+  }, [retryConfig])
   const [isLogin, setIsLogin] = useState(true)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -78,6 +99,7 @@ export function Login() {
         <div className="rounded-2xl border border-gray-200 bg-white p-8 text-gray-900 shadow-lg dark:border-[#2f2f2f] dark:bg-[#202020] dark:text-gray-100 dark:shadow-black/20">
           <h2 className="mb-6 text-xl font-semibold text-gray-900 dark:text-gray-100">{isLogin ? copy.login.signIn : copy.login.signUp}</h2>
 
+          {emailLogin === null ? <div className="space-y-4"><p>{error || '正在连接登录服务…'}</p>{error && <button className="rounded-lg bg-primary-light px-4 py-2 text-white" onClick={() => setRetryConfig(value => value + 1)}>重试连接</button>}</div> : emailLogin ? <EmailLogin isLogin={isLogin} onSwitch={() => setIsLogin(value => !value)} /> : <>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label htmlFor="login-email" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
@@ -176,6 +198,7 @@ export function Login() {
               {isLogin ? copy.login.createAccount : copy.login.backToSignIn}
             </button>
           </p>
+          </>}
         </div>
       </div>
     </div>

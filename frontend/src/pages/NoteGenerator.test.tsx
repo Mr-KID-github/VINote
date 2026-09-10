@@ -76,6 +76,20 @@ describe('NoteGenerator failed generation recovery', () => {
     useNoteGenerationStore.getState().reset()
   })
 
+  it('stops polling when the task record is missing', async () => {
+    apiMock.apiJson.mockResolvedValueOnce({ task_id: 'missing-task' })
+      .mockResolvedValue({ status: 'not_found', message: 'Task not found' })
+    renderGenerator()
+    await userEvent.type(
+      screen.getByPlaceholderText('Paste a YouTube, Bilibili, or other supported video URL...'),
+      'https://example.com/video'
+    )
+    await userEvent.click(screen.getByRole('button', { name: 'Start generation' }))
+    await waitFor(() => expect(useNoteGenerationStore.getState().status).toBe('failed'), { timeout: 4000 })
+    expect(screen.getByText('Task record is missing. Please try again.')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Regenerate' })).toBeEnabled()
+  })
+
   it('lets users regenerate directly with the same video URL after a generation request fails', async () => {
     apiMock.apiJson
       .mockRejectedValueOnce(new Error('backend unavailable'))

@@ -1,6 +1,9 @@
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
 
+#[cfg(not(debug_assertions))]
+mod desktop_backend;
+
 use tauri::{
     AppHandle, Emitter, LogicalPosition, LogicalSize, Manager, RunEvent, Size, State, Url,
     WebviewUrl, WebviewWindowBuilder, WindowEvent,
@@ -36,6 +39,11 @@ pub fn run() {
     let app = tauri::Builder::default()
         .manage(RecorderRuntimeState::default())
         .plugin(tauri_plugin_opener::init())
+        .setup(|_app| {
+            #[cfg(not(debug_assertions))]
+            desktop_backend::start(_app)?;
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             request_microphone_access,
             open_recorder_window,
@@ -96,14 +104,18 @@ fn recorder_window_position(app: &AppHandle) -> Option<LogicalPosition<f64>> {
 }
 
 #[tauri::command]
-fn open_recorder_window(app: AppHandle) -> Result<String, String> {
+async fn open_recorder_window(app: AppHandle) -> Result<String, String> {
+    // WebView2 window creation must not run in a synchronous IPC command:
+    // it can deadlock the Windows UI thread before microphone access begins.
     if let Some(window) = app.get_webview_window(RECORDER_WINDOW_LABEL) {
         // Recover the window from whatever state it was left in by a prior
         // close / hide cycle. Re-navigate first so a stale or unloaded webview
         // recreates the recorder React tree instead of relying on an event
         // listener that may no longer exist.
-        if let Ok(url) = window.url() {
-            let _ = window.navigate(recorder_window_reopen_url(url));
+        if !app.state::<RecorderRuntimeState>().is_active() {
+            if let Ok(url) = window.url() {
+                let _ = window.navigate(recorder_window_reopen_url(url));
+            }
         }
         let _ = window.unminimize();
         let _ = window.show();
@@ -112,10 +124,16 @@ fn open_recorder_window(app: AppHandle) -> Result<String, String> {
         return Ok("existing".into());
     }
 
+    #[cfg(debug_assertions)]
+    let recorder_url = WebviewUrl::App(recorder_window_url().into());
+    #[cfg(not(debug_assertions))]
+    let recorder_url = WebviewUrl::External(app.get_webview_window(MAIN_WINDOW_LABEL)
+        .ok_or("Main window not found")?.url().map_err(|e| e.to_string())?
+        .join("/?recorderWindow=1&autostart=1").map_err(|e| e.to_string())?);
     let mut builder = WebviewWindowBuilder::new(
         &app,
         RECORDER_WINDOW_LABEL,
-        WebviewUrl::App(recorder_window_url().into()),
+        recorder_url,
     )
     .title(RECORDER_WINDOW_TITLE)
     .inner_size(
@@ -205,6 +223,14 @@ fn should_prevent_app_exit(recorder_active: bool) -> bool {
 
 fn handle_run_event(app: &AppHandle, event: RunEvent) {
     match event {
+        #[cfg(not(debug_assertions))]
+        RunEvent::Exit => {
+            if let Some(backend) = app.try_state::<desktop_backend::Backend>() {
+                if let Ok(mut child) = backend.0.lock() {
+                    if let Some(mut child) = child.take() { let _ = child.kill(); let _ = child.wait(); }
+                }
+            }
+        }
         RunEvent::WindowEvent { label, event, .. } => {
             let recorder_active = app.state::<RecorderRuntimeState>().is_active();
             if !should_protect_window_close(&label, recorder_active) {

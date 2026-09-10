@@ -172,17 +172,11 @@ export function FileUploader({
               </p>
               <input
                 type="file"
-                accept={mode === 'transcript' ? '.txt,.srt,.vtt,.json,.md' : 'audio/*,video/*'}
+                accept={mode === 'transcript' ? '.txt,.srt,.vtt,.json,.md' : 'audio/*,video/*,.mp3,.wav,.m4a,.flac,.ogg,.mp4,.mov,.mkv,.webm,.avi'}
                 onChange={handleFileChange}
-                className="hidden"
-                id="file-upload"
+                aria-label={mode === 'transcript' ? copy.fileUploader.selectTranscript : copy.fileUploader.selectFile}
+                className="mx-auto mt-5 block w-full max-w-sm cursor-pointer rounded-lg border border-gray-200 bg-white p-2 text-sm text-gray-600 file:mr-3 file:cursor-pointer file:rounded-md file:border-0 file:bg-primary-light file:px-4 file:py-2 file:font-medium file:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary-light dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300"
               />
-              <label
-                htmlFor="file-upload"
-                className="inline-block mt-4 px-4 py-2 bg-primary-light dark:bg-primary-dark text-white rounded-lg cursor-pointer hover:opacity-90 transition-opacity"
-              >
-                {mode === 'transcript' ? copy.fileUploader.selectTranscript : copy.fileUploader.selectFile}
-              </label>
             </>
           )}
         </div>

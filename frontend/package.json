@@ -15,7 +15,7 @@
     "preview": "vite preview",
     "tauri": "tauri",
     "desktop:dev": "tauri dev",
-    "desktop:build": "tauri build",
+    "desktop:build": "node ../scripts/build-desktop.mjs",
     "test": "vitest run"
   },
   "dependencies": {

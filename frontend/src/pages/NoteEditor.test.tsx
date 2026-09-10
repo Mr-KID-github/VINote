@@ -7,6 +7,7 @@ import { NoteEditor } from './NoteEditor'
 const noteStoreMock = vi.hoisted(() => ({
   loadNoteById: vi.fn(),
   updateNote: vi.fn(),
+  deleteNote: vi.fn(),
   createShareLink: vi.fn(),
   getShareLink: vi.fn(),
   disableShareLink: vi.fn(),
@@ -81,6 +82,29 @@ describe('NoteEditor transcript evidence', () => {
       updatedAt: '2026-07-01T00:00:00Z',
     })
     noteStoreMock.getShareLink.mockResolvedValue(null)
+  })
+
+  it('requires confirmation and returns to the library only after deletion succeeds', async () => {
+    noteStoreMock.deleteNote.mockResolvedValue(undefined)
+    renderEditor()
+    await screen.findByDisplayValue(/Minutes only/)
+    fireEvent.click(screen.getByRole('button', { name: 'Delete note' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+    expect(noteStoreMock.deleteNote).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('button', { name: 'Delete note' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm deletion' }))
+    expect(await screen.findByText('Notes')).toBeInTheDocument()
+    expect(noteStoreMock.deleteNote).toHaveBeenCalledWith('note-1')
+  })
+
+  it('keeps the note open when deletion fails', async () => {
+    noteStoreMock.deleteNote.mockRejectedValue(new Error('Access denied'))
+    renderEditor()
+    await screen.findByDisplayValue(/Minutes only/)
+    fireEvent.click(screen.getByRole('button', { name: 'Delete note' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm deletion' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('Access denied')
+    expect(screen.getByRole('alertdialog')).toBeInTheDocument()
   })
 
   it('keeps summary and transcript separate while sharing one audio player', async () => {

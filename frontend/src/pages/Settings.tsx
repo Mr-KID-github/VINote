@@ -1,11 +1,11 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { useLocation } from 'react-router-dom'
+import { ModelSourcePanel } from '../components/Settings/ModelSourcePanel'
 import { Shield } from 'lucide-react'
 import { AppearanceSettingsPanel } from '../components/Settings/AppearanceSettingsPanel'
-import { ModelProfileManager } from '../components/Settings/ModelProfileManager'
 import { NotificationSettingsPanel } from '../components/Settings/NotificationSettingsPanel'
 import { PlaceholderSettingsPanel } from '../components/Settings/PlaceholderSettingsPanel'
 import { ProfileSettingsPanel } from '../components/Settings/ProfileSettingsPanel'
-import { STTProfileManager } from '../components/Settings/STTProfileManager'
 import { SettingsNav, type SettingsTab } from '../components/Settings/SettingsNav'
 import { useI18n } from '../lib/i18n'
 import { useAuthStore } from '../stores/authStore'
@@ -13,6 +13,8 @@ import { useThemeStore } from '../stores/themeStore'
 
 export function Settings() {
   const [activeTab, setActiveTab] = useState<SettingsTab>('profile')
+  const location = useLocation()
+  useEffect(() => { if (new URLSearchParams(location.search).get('tab') === 'models') setActiveTab('models') }, [location.search])
   const { user } = useAuthStore()
   const { theme, setTheme } = useThemeStore()
   const { copy, language, setLanguage } = useI18n()
@@ -27,10 +29,7 @@ export function Settings() {
         <div className="min-w-0 flex-1">
           {activeTab === 'profile' && <ProfileSettingsPanel email={user?.email} />}
           {activeTab === 'models' && (
-            <div className="space-y-8">
-              <ModelProfileManager />
-              <STTProfileManager />
-            </div>
+            <ModelSourcePanel />
           )}
           {activeTab === 'team' && (
             <PlaceholderSettingsPanel

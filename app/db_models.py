@@ -21,6 +21,15 @@ class UserDB(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, onupdate=utc_now)
 
 
+class VILabPreferenceDB(Base):
+    __tablename__ = "vilab_preferences"
+
+    user_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    mode: Mapped[str] = mapped_column(String(16), default="cloud")
+    asr_model: Mapped[str] = mapped_column(String(200), default="")
+    llm_model: Mapped[str] = mapped_column(String(200), default="")
+
+
 class UserPreferenceDB(Base):
     __tablename__ = "user_preferences"
 
@@ -90,6 +99,16 @@ class ModelProfileDB(Base):
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, onupdate=utc_now)
+
+
+class CloudAccountDB(Base):
+    __tablename__ = "cloud_accounts"
+    __table_args__ = (UniqueConstraint("issuer", "subject", name="uq_cloud_identity"),)
+    user_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    issuer: Mapped[str] = mapped_column(String(500))
+    subject: Mapped[str] = mapped_column(String(100))
+    email: Mapped[str] = mapped_column(String(320))
+    session_encrypted: Mapped[str] = mapped_column(Text)
 
 
 class STTProfileDB(Base):

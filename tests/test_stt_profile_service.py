@@ -121,6 +121,12 @@ class FakeRepository:
 
 
 class STTProfileServiceTest(unittest.TestCase):
+    def setUp(self):
+        # These cases exercise custom profiles, independent of deployment mode.
+        mode = patch("app.services.vilab_cloud_service.VILabCloudService.status", return_value={"mode": "local"})
+        mode.start()
+        self.addCleanup(mode.stop)
+
     def test_resolve_config_prefers_selected_profile(self):
         repository = FakeRepository()
         service = STTProfileService(repository=repository)

@@ -66,6 +66,19 @@ class STTProfileService:
         def reject(field_name: str):
             raise HTTPException(status_code=400, detail=f"{field_name} is not supported for provider `{provider}`")
 
+        if provider == "vliab-server":
+            from urllib.parse import urlparse
+
+            if not base_url or urlparse(base_url).scheme not in {"http", "https"} or not urlparse(base_url).netloc:
+                raise HTTPException(status_code=400, detail="A valid HTTP base_url is required for vliab-server")
+            if not api_key:
+                raise HTTPException(status_code=400, detail="api_key is required for vliab-server")
+            for field, value in [("device", device), ("compute_type", compute_type), ("use_gpu", use_gpu)]:
+                if value is not None:
+                    reject(field)
+            return dict(provider=provider, model_name=model_name, base_url=base_url.rstrip("/"),
+                        api_key=api_key, language=language, device=None, compute_type=None, use_gpu=None)
+
         if provider == "groq":
             if not model_name:
                 raise HTTPException(status_code=400, detail="model_name is required for provider `groq`")
@@ -245,6 +258,15 @@ class STTProfileService:
         raise ValueError(f"Unsupported transcriber type: {provider}")
 
     def list_profiles(self, user_id: str) -> list[STTProfileResponse]:
+        from app.services.vilab_cloud_service import VILabCloudService
+
+        cloud = VILabCloudService().status(user_id)
+        if cloud["mode"] == "cloud":
+            return [STTProfileResponse(
+                id="vilab-cloud", name="VILab · " + (cloud["asr_model"] or "待选择云端模型"),
+                provider="vliab-server", model_name=cloud["asr_model"], base_url=settings.vilab_server_url,
+                api_key_hint="", is_default=True, is_active=True,
+            )]
         return self.repository.list_profiles(user_id)
 
     def create_profile(self, user_id: str, payload: STTProfileCreateRequest) -> STTProfileResponse:
@@ -300,6 +322,10 @@ class STTProfileService:
             STTProfileUpdateRequest(**update_payload),
         )
 
+    def reveal_api_key(self, user_id: str, profile_id: str) -> str:
+        record = self.repository.get_profile_record(user_id, profile_id)
+        return self.repository.decrypt_api_key(record.api_key_encrypted)
+
     def delete_profile(self, user_id: str, profile_id: str) -> None:
         current = self.repository.delete_profile(user_id, profile_id)
         if current.is_default:
@@ -311,6 +337,18 @@ class STTProfileService:
         return self.repository.set_default_profile(user_id, profile_id)
 
     def resolve_config(self, *, user_id: Optional[str], stt_profile_id: Optional[str]) -> ResolvedSTTConfig:
+        if user_id:
+            from app.services.vilab_cloud_service import VILabCloudService
+
+            service = VILabCloudService()
+            cloud = service.status(user_id)
+            if cloud["mode"] == "cloud" and cloud["asr_model"]:
+                return ResolvedSTTConfig(provider="vliab-server", base_url=settings.vilab_server_url,
+                                         model_name=cloud["asr_model"], cloud_user_id=user_id)
+            if cloud["mode"] == "cloud":
+                raise HTTPException(400, "云端模式尚未选择转写模型，请在设置中选择，或切换到本地模式")
+            if stt_profile_id == "vilab-cloud":
+                stt_profile_id = None
         if stt_profile_id:
             if not user_id:
                 raise HTTPException(status_code=401, detail="Authentication required for STT profiles")

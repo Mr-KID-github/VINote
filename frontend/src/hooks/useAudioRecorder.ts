@@ -28,6 +28,7 @@ export function useAudioRecorder() {
   const recorderRef = useRef<MediaRecorder | null>(null)
   const streamRef = useRef<MediaStream | null>(null)
   const chunksRef = useRef<Blob[]>([])
+  const requestVersionRef = useRef(0)
   const timerRef = useRef<ReturnType<typeof window.setInterval> | null>(null)
   const timerStartedAtRef = useRef(0)
   const accumulatedMsRef = useRef(0)
@@ -83,6 +84,7 @@ export function useAudioRecorder() {
   }, [])
 
   const reset = useCallback(() => {
+    requestVersionRef.current += 1
     clearTimer()
     stopActiveRecorder()
     cleanupStream()
@@ -104,6 +106,7 @@ export function useAudioRecorder() {
     }
 
     reset()
+    const requestVersion = requestVersionRef.current
     setStatus('requesting')
 
     try {
@@ -112,7 +115,23 @@ export function useAudioRecorder() {
       if (!readiness.ok) {
         throw new Error(`microphone_${readiness.reason}`)
       }
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      if (requestVersion !== requestVersionRef.current) return
+      let timer: ReturnType<typeof setTimeout> | undefined
+      let expired = false
+      const mediaRequest = navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => {
+        if (expired || requestVersion !== requestVersionRef.current) {
+          stream.getTracks().forEach(track => track.stop())
+          throw new Error('microphone_request_cancelled')
+        }
+        return stream
+      })
+      const stream = await Promise.race([
+        mediaRequest,
+        new Promise<never>((_, reject) => {
+          timer = setTimeout(() => { expired = true; reject(new Error('microphone_request_timeout')) }, 20000)
+        }),
+      ]).finally(() => clearTimeout(timer))
+      streamRef.current = stream
       if (stream.getAudioTracks().length === 0) {
         throw new Error('microphone_no-device')
       }
@@ -140,6 +159,7 @@ export function useAudioRecorder() {
       setStatus('recording')
       startTimer()
     } catch (recordingError) {
+      if (requestVersion !== requestVersionRef.current) return
       cleanupStream()
       const reason = mapMicrophoneError(recordingError)
       const message = reason === 'unknown' && recordingError instanceof Error ? recordingError.message : `microphone_${reason}`
@@ -249,6 +269,7 @@ export function useAudioRecorder() {
   }, [captureElapsed, cleanupStream, clearTimer])
 
   useEffect(() => () => {
+    requestVersionRef.current += 1
     clearTimer()
     stopActiveRecorder()
     cleanupStream()

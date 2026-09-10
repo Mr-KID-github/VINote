@@ -47,3 +47,10 @@ def delete_stt_profile(profile_id: str, user: AuthenticatedUser = Depends(get_cu
 @router.post("/stt-profiles/{profile_id}/set-default", response_model=STTProfileResponse)
 def set_default_stt_profile(profile_id: str, user: AuthenticatedUser = Depends(get_current_user)):
     return _service.set_default_profile(user.user_id, profile_id)
+
+
+@router.post("/stt-profiles/{profile_id}/reveal-key")
+def reveal_profile_key(profile_id: str, response: Response, user: AuthenticatedUser = Depends(get_current_user)):
+    response.headers["Cache-Control"] = "no-store"
+    response.headers["Pragma"] = "no-cache"
+    return {"api_key": _service.reveal_api_key(user.user_id, profile_id)}

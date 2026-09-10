@@ -15,8 +15,56 @@ from app.services.auth_service import (
 router = APIRouter(tags=["auth"])
 
 
+from pydantic import BaseModel, Field
+from app.config import settings
+from app.services.cloud_account_service import CloudAccountService
+
+
+class LoginEmail(BaseModel):
+    email: str = Field(min_length=3, max_length=254, pattern=r"^[^\s@]+@[^\s@]+\.[^\s@]+$")
+
+
+class LoginCode(LoginEmail):
+    code: str = Field(min_length=6, max_length=10, pattern=r"^\d+$")
+
+
+class ResetPassword(LoginCode):
+    password: str = Field(min_length=6, max_length=128)
+
+
+@router.post("/auth/password/code")
+def password_code(payload: LoginEmail):
+    return CloudAccountService().request_password_reset(payload.email)
+
+
+@router.post("/auth/password/reset")
+def password_reset(payload: ResetPassword, response: Response):
+    response.headers["Cache-Control"] = "no-store"
+    return CloudAccountService().reset_password(payload.email, payload.code, payload.password)
+
+
+@router.get("/auth/config")
+def auth_config():
+    return {"email_code": bool(settings.cloud_auth_url and settings.cloud_auth_public_key)}
+
+
+@router.post("/auth/code")
+def login_code(payload: LoginEmail):
+    return CloudAccountService().send_code(None, payload.email)
+
+
+@router.post("/auth/verify", response_model=UserResponse)
+def login_verify(payload: LoginCode, response: Response):
+    user = CloudAccountService().login(payload.email, payload.code)
+    set_auth_cookie(response, create_access_token(user))
+    response.headers["Cache-Control"] = "no-store"
+    return user
+
+
 @router.post("/auth/sign-up", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
 def sign_up(payload: AuthCredentials, response: Response):
+    if settings.cloud_auth_url:
+        raise HTTPException(400, "请通过邮箱验证注册 VINote 账号")
     user = create_user(payload)
     set_auth_cookie(response, create_access_token(user))
     return user
@@ -24,13 +72,16 @@ def sign_up(payload: AuthCredentials, response: Response):
 
 @router.post("/auth/sign-in", response_model=UserResponse)
 def sign_in(payload: AuthCredentials, response: Response):
-    user = authenticate_user(payload)
+    user = CloudAccountService().password_login(payload.email, payload.password) if settings.cloud_auth_url else authenticate_user(payload)
     set_auth_cookie(response, create_access_token(user))
     return user
 
 
 @router.post("/auth/sign-out", status_code=status.HTTP_204_NO_CONTENT)
-def sign_out(response: Response):
+def sign_out(response: Response, user=Depends(get_optional_current_user)):
+    if user:
+        from app.services.cloud_account_service import CloudAccountService
+        CloudAccountService().disconnect(user.user_id)
     clear_auth_cookie(response)
     response.status_code = status.HTTP_204_NO_CONTENT
 
@@ -53,3 +104,16 @@ def session(user=Depends(get_optional_current_user)):
         return SessionResponse(authenticated=False, user=None)
 
     return SessionResponse(authenticated=True, user=current)
+
+
+@router.post("/auth/register/code")
+def register_code(payload: AuthCredentials):
+    return CloudAccountService().register(payload.email, payload.password)
+
+
+@router.post("/auth/register/verify", response_model=UserResponse)
+def register_verify(payload: LoginCode, response: Response):
+    user = CloudAccountService().confirm_registration(payload.email, payload.code)
+    set_auth_cookie(response, create_access_token(user))
+    response.headers["Cache-Control"] = "no-store"
+    return user

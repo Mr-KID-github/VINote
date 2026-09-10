@@ -4,7 +4,7 @@
   "version": "0.4.0",
   "identifier": "app.vinote.desktop",
   "build": {
-    "beforeDevCommand": "bash ../scripts/ensure-web-dev.sh",
+    "beforeDevCommand": "node ../scripts/ensure-web-dev.mjs",
     "beforeBuildCommand": "npm run web:build:tauri",
     "devUrl": "http://127.0.0.1:3100",
     "frontendDist": "../dist"

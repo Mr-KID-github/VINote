@@ -1,3 +1,5 @@
+import { ModelSourcePanel } from "../components/Settings/ModelSourcePanel"
+import { useAppModeStore } from "../stores/appModeStore"
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ArrowLeft, Wand2 } from 'lucide-react'
@@ -28,6 +30,7 @@ export function NoteGenerator() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [uploadMode, setUploadMode] = useState<UploadMode>('url')
   const [summaryMode, setSummaryMode] = useState<SummaryMode>('default')
+  const [taskMessage, setTaskMessage] = useState('')
   const [, setTaskId] = useState('')
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const { copy, language } = useI18n()
@@ -45,6 +48,7 @@ export function NoteGenerator() {
   } = useNoteGenerationStore()
   const { saveNote } = useNoteLibraryStore()
   const { currentWorkspace, teams, loadTeams } = useTeamStore()
+  const cloudMode = useAppModeStore(state => state.config?.mode === "cloud")
   const { profiles, selectedProfileId, selectProfile, loadProfiles } = useModelProfileStore()
   const {
     profiles: sttProfiles,
@@ -81,6 +85,7 @@ export function NoteGenerator() {
     pollRef.current = setInterval(async () => {
       try {
         const data = await apiJson<TaskStatusResponse>(`/api/task/${id}`)
+        setTaskMessage(data.message || '')
 
         if (data.status === 'success') {
           clearInterval(pollRef.current!)
@@ -104,14 +109,17 @@ export function NoteGenerator() {
 
           setStatus('failed')
           setError(copy.generator.saveFailed)
-        } else if (data.status === 'failed') {
+        } else if (data.status === 'failed' || data.status === 'not_found') {
           clearInterval(pollRef.current!)
           pollRef.current = null
           setStatus('failed')
-          setError(data.message || 'Generation failed')
+          setError(data.status === 'not_found'
+            ? (language === 'zh-CN' ? '任务记录不存在或已丢失，请重新生成。' : 'Task record is missing. Please try again.')
+            : data.message || 'Generation failed')
         } else if (data.status === 'transcribing') {
           setCurrentStep('transcribing')
-          setProgress(50)
+          const chunk = data.message?.match(/Transcribing chunk (\d+)\/(\d+)/)
+          setProgress(chunk ? 30 + Math.round(45 * (Number(chunk[1]) - 1) / Number(chunk[2])) : 30)
         } else if (data.status === 'summarizing') {
           setCurrentStep('summarizing')
           setProgress(80)
@@ -121,6 +129,7 @@ export function NoteGenerator() {
         }
       } catch (pollError) {
         console.error('Failed to poll task status:', pollError)
+        setTaskMessage('暂时无法获取任务进度，正在重试；请勿重复提交。')
       }
     }, 2000)
   }
@@ -136,6 +145,7 @@ export function NoteGenerator() {
     }
 
     reset()
+    setTaskMessage('')
     setStatus('uploading')
     setCurrentStep('uploading')
     setProgress(10)
@@ -276,6 +286,7 @@ export function NoteGenerator() {
           </p>
         </div>
 
+        {cloudMode ? <ModelSourcePanel compact /> : <>
         <div className="p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#202020]">
           <label className="block text-sm font-medium mb-2">{copy.generator.modelProfileLabel}</label>
           <select
@@ -326,6 +337,7 @@ export function NoteGenerator() {
           </p>
         </div>
 
+        </>}
         <div className="p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#202020]">
           <label className="block text-sm font-medium mb-2">
             {copy.generator.summaryMode}
@@ -385,6 +397,7 @@ export function NoteGenerator() {
           progress={progress}
           currentStep={currentStep}
           error={error}
+          message={taskMessage}
         />
       </div>
     </div>

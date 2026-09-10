@@ -54,3 +54,4 @@ output/
 
 # Local deployment config
 deploy/pi/local.env
+.desktop-build/

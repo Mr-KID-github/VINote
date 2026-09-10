@@ -88,6 +88,21 @@ describe('useAudioRecorder', () => {
     expect(result.current.status).toBe('stopped')
   })
 
+  it('times out pending permission and releases a late microphone stream', async () => {
+    vi.useFakeTimers()
+    let resolveStream!: (stream: MediaStream) => void
+    vi.mocked(navigator.mediaDevices.getUserMedia).mockImplementation(() => new Promise(resolve => { resolveStream = resolve }))
+    const { result } = renderHook(() => useAudioRecorder())
+    let failure = ''
+    await act(async () => { void result.current.start().catch(error => { failure = error.message }) })
+    await act(async () => { await vi.advanceTimersByTimeAsync(20000) })
+    expect(failure).toBe('microphone_request_timeout')
+    expect(result.current.status).toBe('failed')
+    await act(async () => { resolveStream({ getTracks: () => [{ stop: stopTrack }] } as unknown as MediaStream) })
+    expect(stopTrack).toHaveBeenCalledOnce()
+    expect(lastRecorder).toBeNull()
+  })
+
   it('returns the exact MediaRecorder container instead of re-encoding it in the browser', async () => {
     const { result } = renderHook(() => useAudioRecorder())
 

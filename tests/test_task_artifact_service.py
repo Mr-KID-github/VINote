@@ -1,5 +1,6 @@
 import tempfile
 import unittest
+from unittest.mock import patch
 import json
 from pathlib import Path
 
@@ -10,6 +11,27 @@ from app.services.task_artifact_service import TaskArtifactService
 
 
 class TaskArtifactServiceTest(unittest.TestCase):
+    def test_truncated_title_is_windows_safe_and_mapping_survives(self):
+        with tempfile.TemporaryDirectory() as root:
+            service = TaskArtifactService(Path(root))
+            original = service.create_task_dir("task-space")
+            service.update_status(original, "downloading")
+            final = service.finalize_task_dir(original, "x" * 49 + " more", "task-space")
+            self.assertFalse(final.name.endswith((" ", ".")))
+            self.assertEqual(service.find_task_dir("task-space"), final)
+            self.assertEqual(service.sanitize_filename("..."), "note")
+
+    def test_mapping_write_failure_does_not_move_task(self):
+        with tempfile.TemporaryDirectory() as root:
+            service = TaskArtifactService(Path(root))
+            original = service.create_task_dir("task-error")
+            service.update_status(original, "downloading")
+            with patch.object(service, "write_text", side_effect=OSError("disk error")):
+                with self.assertRaises(OSError):
+                    service.finalize_task_dir(original, "Title", "task-error")
+            self.assertTrue(original.exists())
+            self.assertEqual(service.find_task_dir("task-error"), original)
+
     def test_status_and_result_round_trip(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             service = TaskArtifactService(Path(temp_dir))

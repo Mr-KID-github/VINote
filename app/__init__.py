@@ -33,6 +33,8 @@ def create_app() -> FastAPI:
     def startup():
         init_db()
 
+    from app.routers import vilab
+    app.include_router(vilab.router, prefix="/api")
     app.include_router(auth.router, prefix="/api")
     app.include_router(note.router, prefix="/api")
     app.include_router(note_library.router, prefix="/api")

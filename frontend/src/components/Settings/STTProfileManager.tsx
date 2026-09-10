@@ -1,3 +1,4 @@
+import { SavedApiKey } from './SavedApiKey'
 import { useEffect, useState } from 'react'
 import clsx from 'clsx'
 import { Plus, RotateCcw, Trash2 } from 'lucide-react'
@@ -9,6 +10,7 @@ const providerOptions: Array<{
   value: STTProviderType
   label: string
 }> = [
+  { value: 'vliab-server', label: 'VILab Server (vliab-server)' },
   { value: 'groq', label: 'Groq Whisper' },
   { value: 'whisper', label: 'OpenAI Whisper' },
   { value: 'faster-whisper', label: 'faster-whisper' },
@@ -18,6 +20,8 @@ const providerOptions: Array<{
 
 const getDefaultDraft = (provider: STTProviderType = 'groq'): STTProfileDraft => {
   switch (provider) {
+    case 'vliab-server':
+      return { ...getDefaultDraft('groq'), provider, modelName: '', baseUrl: 'http://localhost:9876' }
     case 'groq':
       return {
         name: '',
@@ -116,11 +120,14 @@ const formatProfileSummary = (profile: STTProfile) => (
   ].filter(Boolean).join(' / ')
 )
 
-const requiresApiKey = (provider: STTProviderType) => provider === 'groq'
+const requiresApiKey = (provider: STTProviderType) => (provider === 'groq' || provider === 'vliab-server')
 
 const canSave = (draft: STTProfileDraft, editingId: string | null) => {
   if (!draft.name.trim()) {
     return false
+  }
+  if (draft.provider === 'vliab-server') {
+    return Boolean(draft.baseUrl.trim() && (editingId || draft.apiKey.trim()))
   }
   if (draft.provider === 'groq') {
     return Boolean(draft.modelName.trim() && (editingId || draft.apiKey.trim()))
@@ -217,9 +224,9 @@ export function STTProfileManager() {
   }
 
   const showModel = draft.provider !== 'sensevoice'
-  const showBaseUrl = draft.provider === 'sensevoice'
-  const showApiKey = draft.provider === 'groq'
-  const showLanguage = draft.provider === 'groq' || draft.provider === 'faster-whisper' || draft.provider === 'sensevoice' || draft.provider === 'sensevoice-local'
+  const showBaseUrl = draft.provider === 'sensevoice' || draft.provider === 'vliab-server'
+  const showApiKey = requiresApiKey(draft.provider)
+  const showLanguage = draft.provider === 'vliab-server' || draft.provider === 'groq' || draft.provider === 'faster-whisper' || draft.provider === 'sensevoice' || draft.provider === 'sensevoice-local'
   const showDevice = draft.provider === 'whisper' || draft.provider === 'faster-whisper'
   const showComputeType = draft.provider === 'faster-whisper'
   const showUseGpu = draft.provider === 'sensevoice-local'
@@ -259,7 +266,7 @@ export function STTProfileManager() {
             </div>
           ) : (
             <div className="stealth-scroll max-h-[620px] space-y-3 overflow-y-auto pr-1">
-              {profiles.map((profile) => (
+              {profiles.filter(profile => profile.id !== 'vilab-cloud').map((profile) => (
                 <div
                   key={profile.id}
                   className="rounded-3xl border border-gray-200 bg-white p-5 transition-colors hover:border-gray-300 dark:border-gray-800 dark:bg-[#1b1b1b] dark:hover:border-gray-700"
@@ -282,7 +289,7 @@ export function STTProfileManager() {
                       </div>
                       <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{formatProfileSummary(profile)}</p>
                       {profile.baseUrl && <p className="mt-2 break-all text-xs leading-5 text-gray-400">{profile.baseUrl}</p>}
-                      {profile.apiKeyHint && <p className="mt-1 text-xs text-gray-400">{copy.sttProfiles.keyPrefix} {profile.apiKeyHint}</p>}
+                      <SavedApiKey key={profile.updatedAt} kind="stt" profileId={profile.id} hint={profile.apiKeyHint} />
                     </div>
                     </div>
                     <div className="flex flex-wrap gap-2">

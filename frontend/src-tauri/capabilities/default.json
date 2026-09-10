@@ -3,9 +3,11 @@
   "identifier": "default",
   "description": "Default desktop permissions for VINote.",
   "windows": ["main", "recorder-window"],
+  "remote": { "urls": ["http://127.0.0.1:*"] },
   "permissions": [
     "core:default",
     "core:window:allow-hide",
+    "core:window:allow-close",
     "core:window:allow-start-dragging",
     "core:window:allow-set-size",
     "opener:default"
