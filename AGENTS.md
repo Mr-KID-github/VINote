@@ -178,6 +178,7 @@ Update `README.md`, this `AGENTS.md`, or both whenever you change:
 - If documentation and code disagree, trust the code, then fix the documentation in the same change.
 
 ## Cloud account integration development
+- Cloud session linking must match the current local user's normalized email and must never replace an existing issuer/subject. Registration keeps email/password fixed after sending the code; switching back to login resets the form.
 - `cloud_account_service.py` owns VINote Supabase email OTP linking, encrypted sessions and token rotation. `VINOTE_SUPABASE_URL` / `VINOTE_SUPABASE_PUBLISHABLE_KEY` enable personal authentication; configured personal auth never falls back to the deployment key.
 - Cloud account endpoints under `/api/vilab/account` require local VINote authentication. `cloud_accounts` maps local users to unique `(issuer, subject)` identities.
 - Local VILab Server integration uses configurable `http://127.0.0.1:9878`; do not change the deployed LAN server until the user deploys the modified branch.

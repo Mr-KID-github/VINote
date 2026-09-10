@@ -31,6 +31,9 @@ def cloud(monkeypatch, tmp_path):
 
 def test_login_stores_encrypted_personal_session_and_rejects_cross_account_link(cloud, monkeypatch):
     service, sessions = cloud
+    from app.db_models import UserDB
+    with sessions() as db:
+        db.add(UserDB(id="local-a", email="a@example.com", password_hash="unused"))
     def request(path, payload=None, token=None):
         if path == "verify":
             return {"access_token": "personal-token", "refresh_token": "refresh-secret", "expires_in": 3600}
@@ -46,6 +49,21 @@ def test_login_stores_encrypted_personal_session_and_rejects_cross_account_link(
     with pytest.raises(HTTPException) as error:
         service.verify_code("local-b", "a@example.com", "123456")
     assert error.value.status_code == 409
+
+
+def test_binding_cannot_replace_email_or_subject(cloud):
+    from app.db_models import UserDB
+    service, sessions = cloud
+    with sessions() as db:
+        db.add(UserDB(id="local-a", email="a@example.com", password_hash="unused"))
+    session = {"access_token": "original", "refresh_token": "refresh", "expires_in": 3600}
+    identity = {"id": "subject-a", "email": "a@example.com", "email_confirmed_at": "2026-09-09"}
+    service.store_session("local-a", session, identity)
+    for replacement in [dict(identity, email="b@example.com"), dict(identity, id="subject-b")]:
+        with pytest.raises(HTTPException) as error:
+            service.store_session("local-a", dict(session, access_token="replacement"), replacement)
+        assert error.value.status_code == 409
+        assert service.access_token("local-a") == "original"
 
 
 def test_refresh_rotates_and_is_not_repeated(cloud, monkeypatch):

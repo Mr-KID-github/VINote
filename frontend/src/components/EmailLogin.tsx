@@ -11,6 +11,7 @@ export function EmailLogin({ isLogin, onSwitch }: { isLogin: boolean; onSwitch: 
   const [confirmation, setConfirmation] = useState('')
   const [busy, setBusy] = useState(false)
   const [seconds, setSeconds] = useState(0)
+  const [registrationSent, setRegistrationSent] = useState(false)
   const [message, setMessage] = useState('')
   const [recovering, setRecovering] = useState(false)
   const navigate = useNavigate()
@@ -37,21 +38,21 @@ export function EmailLogin({ isLogin, onSwitch }: { isLogin: boolean; onSwitch: 
     })
   }}>
     <p className="text-sm leading-6 text-gray-500 dark:text-gray-400">{isLogin ? '使用邮箱和密码登录，登录后即可使用云端模型。' : '设置密码并验证邮箱，创建你的 VINote 账号。'}</p>
-    <label className="block text-sm font-medium">邮箱<input required type="email" autoComplete="email" value={email} onChange={e => setEmail(e.target.value)} className={`${field} mt-1`} /></label>
-    <label className="block text-sm font-medium">密码<input required type="password" autoComplete={isLogin ? 'current-password' : 'new-password'} minLength={6} maxLength={128} disabled={!isLogin && seconds > 0} value={password} onChange={e => setPassword(e.target.value)} className={`${field} mt-1`} /></label>
+    <label className="block text-sm font-medium">邮箱<input required type="email" disabled={busy || (!isLogin && registrationSent)} autoComplete="email" value={email} onChange={e => setEmail(e.target.value)} className={`${field} mt-1`} /></label>
+    <label className="block text-sm font-medium">密码<input required type="password" autoComplete={isLogin ? 'current-password' : 'new-password'} minLength={6} maxLength={128} disabled={busy || (!isLogin && registrationSent)} value={password} onChange={e => setPassword(e.target.value)} className={`${field} mt-1`} /></label>
     {!isLogin && <>
-    <label className="block text-sm font-medium">确认密码<input required type="password" autoComplete="new-password" disabled={seconds > 0} value={confirmation} onChange={e => setConfirmation(e.target.value)} className={`${field} mt-1`} /></label>
+    <label className="block text-sm font-medium">确认密码<input required type="password" autoComplete="new-password" disabled={busy || registrationSent} value={confirmation} onChange={e => setConfirmation(e.target.value)} className={`${field} mt-1`} /></label>
     <div className="flex gap-3 items-end">
       <label className="block min-w-0 flex-1 text-sm font-medium">验证码<input required inputMode="numeric" autoComplete="one-time-code" minLength={6} maxLength={10} value={code} onChange={e => setCode(e.target.value)} className={`${field} mt-1`} /></label>
       <button type="button" disabled={busy || !email || password.length < 6 || password !== confirmation || seconds > 0} className="shrink-0 rounded-lg border border-gray-200 px-3 py-2.5 text-sm disabled:opacity-50 dark:border-gray-700" onClick={() => void run(async () => {
         await apiJson('/api/auth/register/code', {method:'POST', body:JSON.stringify({email, password})})
-        setSeconds(60); setMessage('验证码已发送，请检查邮箱')
+        setRegistrationSent(true); setSeconds(60); setMessage('验证码已发送，请检查邮箱')
       })}>{seconds ? `${seconds} 秒后重发` : '获取验证码'}</button>
     </div>
     </>}
     {isLogin && <button type="button" disabled={busy} onClick={() => setRecovering(true)} className="text-sm text-primary-light hover:underline">忘记密码 / 首次设置密码</button>}
     {message && <p role="status" className="text-sm text-gray-500 dark:text-gray-400">{message}</p>}
     <button disabled={busy} className="w-full rounded-lg bg-primary-light px-4 py-3 font-medium text-white hover:opacity-90 disabled:opacity-50 dark:bg-primary-dark">{busy ? '处理中…' : isLogin ? '登录' : '注册'}</button>
-    <button type="button" disabled={busy} className="w-full text-center text-sm text-primary-light hover:underline" onClick={() => { onSwitch(); setMessage(''); setCode('') }}>{isLogin ? '没有账号？创建账号' : '已有账号？返回登录'}</button>
+    <button type="button" disabled={busy} className="w-full text-center text-sm text-primary-light hover:underline" onClick={() => { onSwitch(); setMessage(''); setCode(''); setRegistrationSent(false); setSeconds(0); setPassword(''); setConfirmation('') }}>{isLogin ? '没有账号？创建账号' : '已有账号？返回登录'}</button>
   </form>
 }

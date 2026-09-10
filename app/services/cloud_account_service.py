@@ -143,12 +143,18 @@ class CloudAccountService:
         if not identity.get("email_confirmed_at") or identity.get("is_anonymous"):
             raise HTTPException(403, "请先验证邮箱")
         with _lock(user_id), session_scope() as db:
+            from app.db_models import UserDB
+            user = db.get(UserDB, user_id)
+            if not user or user.email.strip().lower() != identity["email"].strip().lower():
+                raise HTTPException(409, "云端身份必须与当前 VINote 账号邮箱一致")
             existing = db.scalar(select(CloudAccountDB).where(
                 CloudAccountDB.issuer == settings.cloud_auth_url,
                 CloudAccountDB.subject == identity["id"]))
             if existing and existing.user_id != user_id:
                 raise HTTPException(409, "此云端账号已关联其他 VINote 账号")
             row = db.get(CloudAccountDB, user_id)
+            if row and (row.issuer != settings.cloud_auth_url or row.subject != identity["id"]):
+                raise HTTPException(409, "账号身份不匹配，请联系管理员")
             if not row:
                 row = CloudAccountDB(user_id=user_id)
                 db.add(row)
